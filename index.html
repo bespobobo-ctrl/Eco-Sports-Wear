@@ -458,6 +458,36 @@
                         </button>
                     </form>
                 </section>
+
+                <!-- SECTION 2: STAFF (CASHIERS) MANAGEMENT [NEW] -->
+                <section class="pos-grid-container" style="margin-top: 2.5rem; margin-bottom: 50px; max-width: 850px; margin-left: auto; margin-right: auto; padding: 2rem;">
+                    <div class="history-header" style="margin-bottom: 1.5rem;">
+                        <div>
+                            <h2 style="font-weight: 800; margin-bottom: 0.3rem;">Kassirlar (Xodimlar) <span class="highlight-text">Boshqaruvi</span></h2>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem;">Kassa xodimlari ro'yxati, portal parollari va ularga biriktirilgan maxsus savdo tasdiqlash PIN-kodlari.</p>
+                        </div>
+                        <button class="btn btn-primary btn-glow" id="add-cashier-trigger" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
+                            <i class="fa-solid fa-user-plus"></i> Yangi Kassir Qo'shish
+                        </button>
+                    </div>
+
+                    <div style="overflow-x: auto;">
+                        <table class="crm-table">
+                            <thead>
+                                <tr>
+                                    <th>Ismi-Sharifi</th>
+                                    <th>Login (Username)</th>
+                                    <th>Kirish Paroli</th>
+                                    <th>POS Tasdiqlash PIN</th>
+                                    <th>Harakatlar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="settings-cashiers-table-body">
+                                <!-- Rendered dynamically by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -662,6 +692,44 @@
 
                     <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
                         <i class="fa-solid fa-file-invoice-dollar"></i> XARAJATNI RO'YXATGA OLISH
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- CASHIER REGISTRATION & EDIT POPUP MODAL [NEW] -->
+        <div class="modal" id="settings-cashier-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 400px; padding: 2rem;">
+                <button class="close-modal-btn" id="close-cashier-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.15); color: var(--primary); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-user-gear"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;" class="text-center" id="cashier-modal-title">Xodim Qo'shish</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;" class="text-center" id="cashier-modal-desc">Kassir portal tizimiga kirishi uchun login paroli va savdoni tasdiqlovchi PIN-kodini belgilang.</p>
+                
+                <form id="settings-cashier-form" class="checkout-form" style="gap: 1rem;">
+                    <input type="hidden" id="cashier-edit-id" value="">
+                    <div class="form-group">
+                        <label for="cashier-name">Kassir Ismi-Sharifi</label>
+                        <input type="text" id="cashier-name" placeholder="Masalan: Alisher Xodjayev" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cashier-username">Login (Username)</label>
+                        <input type="text" id="cashier-username" placeholder="Masalan: alisher123" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cashier-password">Kirish Paroli</label>
+                        <input type="text" id="cashier-password" placeholder="Masalan: 123" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cashier-pin">Sotuvni tasdiqlovchi PIN (4 xonali raqam)</label>
+                        <input type="password" id="cashier-pin" maxlength="4" placeholder="••••" required style="font-weight: 800; font-size: 1.25rem; text-align: center; letter-spacing: 5px; width: 100%;">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem;">
+                        <i class="fa-solid fa-user-check"></i> SAQLASH
                     </button>
                 </form>
             </div>

@@ -67,6 +67,14 @@ PRODUCTS.forEach(p => {
 let inventory = defaultInventory;
 let expenses = [];
 
+const defaultUsers = [
+    { id: "u-1", name: "Admin", username: "admin", password: "eco777", pin: "7777" },
+    { id: "u-2", name: "Optim 1", username: "Optim1", password: "123", pin: "8888" },
+    { id: "u-3", name: "Dona 1", username: "Dona1", password: "123", pin: "9999" }
+];
+let users = defaultUsers;
+let currentUser = null;
+
 // 4. DOM ELEMENTS
 // Authentication Screen elements
 const loginScreen = document.getElementById("login-screen");
@@ -153,9 +161,13 @@ function handleLoginSubmit(e) {
     const userVal = usernameInput.value.trim();
     const passVal = passwordInput.value;
 
-    if (userVal === "admin" && passVal === "eco777") {
+    const matchedUser = users.find(u => u.username === userVal && u.password === passVal);
+
+    if (matchedUser) {
         loginErrorMsg.style.display = "none";
         sessionStorage.setItem("eco_sports_logged_in", "true");
+        sessionStorage.setItem("eco_sports_logged_in_user", JSON.stringify(matchedUser));
+        currentUser = matchedUser;
         unlockDashboard();
     } else {
         loginErrorMsg.style.display = "flex";
@@ -169,13 +181,16 @@ function unlockDashboard() {
     loginScreen.style.display = "none";
     dashboardScreen.style.display = "block";
 
-    // Detect active Cashier from Telegram WebApp
-    if (tg && tg.initDataUnsafe?.user) {
-        const user = tg.initDataUnsafe.user;
-        activeCashierLabel.textContent = `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username || "Telegram Admin";
-    } else {
-        activeCashierLabel.textContent = "Admin";
+    if (!currentUser) {
+        const savedUser = sessionStorage.getItem("eco_sports_logged_in_user");
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+        } else {
+            currentUser = users[0]; // fallback to admin
+        }
     }
+
+    activeCashierLabel.textContent = currentUser.name;
 
     // Initialize all renders
     renderTiles();
@@ -531,7 +546,9 @@ function handlePinSubmit(e) {
     e.preventDefault();
     const pinVal = pinInput.value;
 
-    if (pinVal === appConfig.pin) {
+    const correctPin = currentUser?.pin || appConfig.pin;
+
+    if (pinVal === correctPin) {
         pinErrorMsg.style.display = "none";
         closePinModalOverlay();
         completeSale();
@@ -787,6 +804,70 @@ function populateSettings() {
     if (pinInput) pinInput.value = appConfig.pin;
     if (tokenInput) tokenInput.value = appConfig.botToken;
     if (chatInput) chatInput.value = appConfig.chatId || "";
+    
+    renderCashiersList();
+}
+
+// 11.8 RENDER CASHIERS (STAFF) LIST
+function renderCashiersList() {
+    const tableBody = document.getElementById("settings-cashiers-table-body");
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = "";
+    
+    users.forEach(u => {
+        const row = document.createElement("tr");
+        
+        const isPrimaryAdmin = u.username === "admin";
+        const deleteButton = isPrimaryAdmin 
+            ? `<span style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">(Asosiy admin)</span>`
+            : `<button class="qty-btn delete-cashier-btn" data-id="${u.id}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width:30px; height:30px;" title="O'chirish"><i class="fa-solid fa-trash-can"></i></button>`;
+            
+        row.innerHTML = `
+            <td><strong>${u.name}</strong></td>
+            <td><code>${u.username}</code></td>
+            <td><span style="font-family: monospace; font-size: 0.85rem;">${u.password}</span></td>
+            <td><strong style="color: var(--accent); letter-spacing: 1px;">${u.pin}</strong></td>
+            <td style="display: flex; gap: 0.4rem; justify-content: center; align-items: center;">
+                <button class="qty-btn edit-cashier-btn" data-id="${u.id}" style="background: var(--primary-glow); border-color: rgba(16, 185, 129, 0.2); color: var(--primary); width:30px; height:30px;" title="Tahrirlash"><i class="fa-solid fa-user-pen"></i></button>
+                ${deleteButton}
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+    
+    tableBody.querySelectorAll(".edit-cashier-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const cashier = users.find(u => u.id === id);
+            if (!cashier) return;
+            
+            document.getElementById("cashier-edit-id").value = cashier.id;
+            document.getElementById("cashier-name").value = cashier.name;
+            document.getElementById("cashier-username").value = cashier.username;
+            document.getElementById("cashier-password").value = cashier.password;
+            document.getElementById("cashier-pin").value = cashier.pin;
+            
+            document.getElementById("cashier-modal-title").textContent = "Xodimni Tahrirlash";
+            document.getElementById("cashier-modal-desc").textContent = "Kassirning ismi, tizim paroli yoki savdo PIN-kodini shu yerdan tahrirlang.";
+            
+            document.getElementById("settings-cashier-modal").classList.add("open");
+        });
+    });
+    
+    tableBody.querySelectorAll(".delete-cashier-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            const cashier = users.find(u => u.id === id);
+            if (!cashier) return;
+            
+            if (confirm(`Haqiqatan ham "${cashier.name}" xodimini tizimdan o'chirmoqchimisiz?`)) {
+                users = users.filter(u => u.id !== id);
+                localStorage.setItem("eco_sports_users", JSON.stringify(users));
+                renderCashiersList();
+            }
+        });
+    });
 }
 
 // 12. GENERAL CONTROLS SETUP
@@ -1062,6 +1143,87 @@ function setupEventListeners() {
             alert("Tizim sozlamalari muvaffaqiyatli saqlandi!");
         });
     }
+
+    // 14. STAFF (CASHIER) MANAGER TRIGGERS [NEW]
+    const cashierModal = document.getElementById("settings-cashier-modal");
+    const addCashierTrigger = document.getElementById("add-cashier-trigger");
+    const closeCashierModal = document.getElementById("close-cashier-modal");
+    const cashierForm = document.getElementById("settings-cashier-form");
+    
+    const cashierEditIdInput = document.getElementById("cashier-edit-id");
+    const cashierNameInput = document.getElementById("cashier-name");
+    const cashierUsernameInput = document.getElementById("cashier-username");
+    const cashierPasswordInput = document.getElementById("cashier-password");
+    const cashierPinInput = document.getElementById("cashier-pin");
+
+    if (addCashierTrigger && cashierModal) {
+        addCashierTrigger.addEventListener("click", () => {
+            cashierEditIdInput.value = "";
+            cashierNameInput.value = "";
+            cashierUsernameInput.value = "";
+            cashierPasswordInput.value = "";
+            cashierPinInput.value = "";
+            
+            document.getElementById("cashier-modal-title").textContent = "Xodim Qo'shish";
+            document.getElementById("cashier-modal-desc").textContent = "Kassir portal tizimiga kirishi uchun login paroli va savdoni tasdiqlovchi PIN-kodini belgilang.";
+            
+            cashierModal.classList.add("open");
+        });
+    }
+
+    if (closeCashierModal && cashierModal) {
+        const closeCashierModalOverlay = () => cashierModal.classList.remove("open");
+        closeCashierModal.addEventListener("click", closeCashierModalOverlay);
+        cashierModal.addEventListener("click", (e) => {
+            if (e.target === cashierModal) closeCashierModalOverlay();
+        });
+    }
+
+    if (cashierForm) {
+        cashierForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+
+            const editId = cashierEditIdInput.value;
+            const name = cashierNameInput.value.trim();
+            const username = cashierUsernameInput.value.trim();
+            const password = cashierPasswordInput.value.trim();
+            const pinVal = cashierPinInput.value.trim();
+
+            if (pinVal.length !== 4 || isNaN(pinVal)) {
+                alert("Savdoni tasdiqlovchi PIN-kod 4 xonali raqam bo'lishi shart!");
+                return;
+            }
+
+            const duplicate = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== editId);
+            if (duplicate) {
+                alert("Ushbu login band! Iltimos, boshqa login tanlang.");
+                return;
+            }
+
+            if (editId) {
+                const idx = users.findIndex(u => u.id === editId);
+                if (idx !== -1) {
+                    users[idx].name = name;
+                    users[idx].username = username;
+                    users[idx].password = password;
+                    users[idx].pin = pinVal;
+                }
+            } else {
+                const newCashier = {
+                    id: "u-" + Math.floor(1000 + Math.random() * 9000),
+                    name: name,
+                    username: username,
+                    password: password,
+                    pin: pinVal
+                };
+                users.push(newCashier);
+            }
+
+            localStorage.setItem("eco_sports_users", JSON.stringify(users));
+            renderCashiersList();
+            cashierModal.classList.remove("open");
+        });
+    }
 }
 
 // 13. INITIALIZATION
@@ -1102,6 +1264,14 @@ document.addEventListener("DOMContentLoaded", () => {
         appConfig = JSON.parse(savedConfig);
     } else {
         localStorage.setItem("eco_sports_config", JSON.stringify(appConfig));
+    }
+
+    // Load staff database
+    const savedUsers = localStorage.getItem("eco_sports_users");
+    if (savedUsers) {
+        users = JSON.parse(savedUsers);
+    } else {
+        localStorage.setItem("eco_sports_users", JSON.stringify(users));
     }
 
     setupEventListeners();
