@@ -473,35 +473,63 @@ button, input, select, textarea {
     color: var(--text-secondary);
 }
 
-/* Categories tab */
+/* Categories & Suppliers filter containers */
 .filter-controls {
     display: flex;
-    gap: 0.5rem;
-    background: var(--bg-dark-base);
-    border: 1px solid var(--border-color);
-    padding: 0.4rem;
-    border-radius: 14px;
+    gap: 0.6rem;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.45), rgba(9, 13, 22, 0.7));
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0.35rem;
+    border-radius: 16px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 .filter-btn {
-    padding: 0.6rem 1.2rem;
+    padding: 0.65rem 1.3rem;
     font-size: 0.85rem;
     font-weight: 700;
     color: var(--text-secondary);
     background: transparent;
-    border-radius: 10px;
+    border-radius: 12px;
     cursor: pointer;
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: var(--transition-bounce);
+}
+
+.filter-btn i {
+    font-size: 0.95rem;
+    color: var(--text-muted);
     transition: var(--transition-smooth);
 }
 
-.filter-btn:hover, .filter-btn.active {
+.filter-btn:hover {
     color: var(--text-primary);
-    background: var(--bg-dark-input);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(16, 185, 129, 0.15);
+    transform: translateY(-2px) scale(1.02);
+}
+
+.filter-btn:hover i {
+    color: var(--primary);
 }
 
 .filter-btn.active {
-    border: 1px solid var(--border-hover);
-    color: var(--primary);
+    color: #ffffff;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    transform: translateY(-2px);
+}
+
+.filter-btn.active i {
+    color: #ffffff !important;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
 }
 
 /* Product Tiles Grid */
