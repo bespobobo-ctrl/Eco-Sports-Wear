@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eco Sports - POS Kassa & CRM Panel</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom style links -->
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Specific Admin styling over style.css */
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 2rem;
+            margin-top: 110px;
+            margin-bottom: 50px;
+        }
+        
+        .pos-grid-container {
+            background: var(--bg-dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 1.8rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .pos-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            gap: 1rem;
+        }
+
+        .pos-search {
+            flex-grow: 1;
+            max-width: 350px;
+        }
+
+        .pos-tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1.2rem;
+            max-height: 520px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .tile-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 0.8rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition-bounce);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tile-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
+            background: rgba(16, 185, 129, 0.04);
+        }
+
+        .tile-img {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 0.6rem;
+            background: #000;
+        }
+
+        .tile-card h4 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.3rem;
+        }
+
+        .tile-price {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        /* Virtual Register / POS Chek */
+        .register-container {
+            background: var(--bg-dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 1.8rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 600px;
+        }
+
+        .receipt-tape {
+            flex-grow: 1;
+            overflow-y: auto;
+            max-height: 350px;
+            margin-bottom: 1.5rem;
+            padding-right: 0.5rem;
+        }
+
+        .receipt-item {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr 0.8fr 0.2fr;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.8rem 0;
+            border-bottom: 1px dashed var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        .receipt-item-name {
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .receipt-item-qty {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .receipt-item-price {
+            font-weight: 800;
+            color: var(--primary);
+            text-align: right;
+        }
+
+        .receipt-remove {
+            color: var(--text-muted);
+            background: transparent;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            text-align: right;
+        }
+
+        .receipt-remove:hover {
+            color: #ef4444;
+        }
+
+        .pos-calculator-modal {
+            max-width: 420px;
+        }
+
+        .calc-form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .calc-form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-bottom: 0.4rem;
+        }
+
+        .calc-qty-input {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        /* Analytics and History section */
+        .analytics-section {
+            margin-bottom: 80px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-badge-card {
+            background: var(--bg-dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+        }
+
+        .stat-badge-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 14px;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            font-size: 1.5rem;
+        }
+
+        .stat-badge-icon.cyan-theme {
+            background: rgba(6, 182, 212, 0.08);
+            border-color: rgba(6, 182, 212, 0.15);
+            color: var(--accent);
+        }
+
+        .stat-badge-info h4 {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.2rem;
+        }
+
+        .stat-badge-info strong {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .history-card-container {
+            background: var(--bg-dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 2rem;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .crm-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        .crm-table th, .crm-table td {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .crm-table th {
+            color: var(--text-secondary);
+            font-weight: 700;
+        }
+
+        .crm-table tr:hover {
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .channel-tag {
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .tag-telegram {
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--accent);
+        }
+
+        .tag-direct {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--primary);
+        }
+
+        .empty-history-box {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-history-box i {
+            font-size: 3rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navbar -->
+    <header class="main-header">
+        <div class="container navbar">
+            <a href="index.html" class="logo">
+                <span class="logo-eco">ECO</span>
+                <span class="logo-sports">SPORTS</span>
+                <span style="font-size: 0.8rem; background: var(--primary-glow); padding: 0.2rem 0.5rem; border-radius: 6px; margin-left: 10px; color: var(--primary); border: 1px solid rgba(16,185,129,0.3)">KASSA & CRM</span>
+            </a>
+            
+            <nav class="nav-menu">
+                <ul>
+                    <li><a href="index.html" class="nav-link"><i class="fa-solid fa-store" style="margin-right: 5px;"></i> Do'konga Qaytish</a></li>
+                </ul>
+            </nav>
+
+            <div class="nav-actions">
+                <div style="font-size: 0.9rem; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); padding: 0.5rem 1rem; border-radius: 30px; border: 1px solid var(--border-color)">
+                    <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 10px #10b981"></span>
+                    <strong>Sotuvchi Terminali</strong>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main CRM/POS Layout -->
+    <div class="container">
+        <div class="admin-layout">
+            
+            <!-- CHAP TARKIB: POS plitkalari -->
+            <section class="pos-grid-container">
+                <div class="pos-header">
+                    <h3>Mahsulotlar <span class="highlight-text">Taxtasi</span></h3>
+                    <div class="search-bar pos-search">
+                        <input type="text" id="pos-search-input" placeholder="Tezkor qidirish...">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Filters categories tab inside POS -->
+                <div class="filter-controls" style="margin-bottom: 1.5rem; padding: 0.3rem;">
+                    <button class="filter-btn active" data-pos-filter="all">Barchasi</button>
+                    <button class="filter-btn" data-pos-filter="tshirt">Futbolkalar</button>
+                    <button class="filter-btn" data-pos-filter="shorts">Shortilar</button>
+                    <button class="filter-btn" data-pos-filter="tracksuit">Sportivkalar</button>
+                    <button class="filter-btn" data-pos-filter="joggers">Trikolar</button>
+                </div>
+
+                <!-- Product Tiles -->
+                <div class="pos-tiles" id="pos-tiles-grid">
+                    <!-- Dynamic Tiles in admin.js -->
+                </div>
+            </section>
+
+            <!-- O'NG TARKIB: Virtual POS Chek -->
+            <section class="register-container">
+                <div>
+                    <h3 style="margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                        <span>Kassa Cheki</span>
+                        <span style="font-size: 0.8rem; background: var(--bg-dark-input); padding: 0.2rem 0.6rem; border-radius: 4px; color: var(--text-secondary)" id="pos-receipt-id">#CHK-1002</span>
+                    </h3>
+
+                    <!-- Receipt items header -->
+                    <div style="display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr 0.2fr; font-size: 0.75rem; color: var(--text-secondary); font-weight: 700; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                        <span>NOMI</span>
+                        <span>SONI & O'LCHAM</span>
+                        <span style="text-align: right;">SOTILISH NARXI</span>
+                        <span></span>
+                    </div>
+
+                    <!-- Receipt Tape List -->
+                    <div class="receipt-tape" id="pos-receipt-list">
+                        <!-- Dynamic items -->
+                    </div>
+                </div>
+
+                <!-- Checkout calculator box -->
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.2rem; margin-top: auto;">
+                    <div class="checkout-form" style="gap: 0.8rem;">
+                        <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
+                            <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Mijoz Kanali:</label>
+                            <select id="pos-channel" style="width: 150px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 8px;">
+                                <option value="direct">Do'kondan Kirgan</option>
+                                <option value="telegram">Telegram Mini App</option>
+                                <option value="phone">Telefon Orqali</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
+                            <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Umumiy Chegirma (UZS):</label>
+                            <input type="number" id="pos-discount" placeholder="0" style="width: 120px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 8px; text-align: right;" min="0" value="0">
+                        </div>
+                    </div>
+                    
+                    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.8rem 0;">
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.2rem;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary)">
+                            <span>Subtotal:</span>
+                            <span id="pos-subtotal">0 UZS</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary)">
+                            <span>Chegirma:</span>
+                            <span id="pos-discount-value">-0 UZS</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 800;">
+                            <span>Jami To'lov:</span>
+                            <strong class="highlight-text" id="pos-final-total" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-block btn-glow" id="pos-checkout-btn" disabled>
+                        <i class="fa-solid fa-cash-register" style="margin-right: 5px;"></i> SOTISHNI YAKUNLASH
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- CRM SALES ANALYTICS & HISTORY SECTION -->
+        <section class="analytics-section">
+            <h2 style="margin-bottom: 2rem; font-weight: 800;">CRM Savdo <span class="highlight-text">Tahlillari</span></h2>
+
+            <!-- Analytics key counts -->
+            <div class="stats-grid">
+                <div class="stat-badge-card">
+                    <div class="stat-badge-icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+                    <div class="stat-badge-info">
+                        <h4>Jami Tushum</h4>
+                        <strong id="crm-total-revenue">0 UZS</strong>
+                    </div>
+                </div>
+                <div class="stat-badge-card">
+                    <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-receipt"></i></div>
+                    <div class="stat-badge-info">
+                        <h4>Sotuvlar Soni</h4>
+                        <strong id="crm-total-sales">0 ta</strong>
+                    </div>
+                </div>
+                <div class="stat-badge-card">
+                    <div class="stat-badge-icon"><i class="fa-solid fa-calculator"></i></div>
+                    <div class="stat-badge-info">
+                        <h4>O'rtacha Chek</h4>
+                        <strong id="crm-avg-invoice">0 UZS</strong>
+                    </div>
+                </div>
+                <div class="stat-badge-card">
+                    <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-shirt"></i></div>
+                    <div class="stat-badge-info">
+                        <h4>Sotilgan Kiyimlar</h4>
+                        <strong id="crm-total-items">0 dona</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transactions log history table -->
+            <div class="history-card-container">
+                <div class="history-header">
+                    <h3>Savdolar <span class="highlight-text">Tarixi Loglari</span></h3>
+                    <button class="btn btn-secondary" id="crm-clear-logs" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
+                        <i class="fa-solid fa-trash-arrow-up" style="margin-right: 5px;"></i> Tarixni Tozalash
+                    </button>
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table class="crm-table">
+                        <thead>
+                            <tr>
+                                <th>Sotuv ID</th>
+                                <th>Sana / Vaqt</th>
+                                <th>Sotuv Kanali</th>
+                                <th>Kiyimlar</th>
+                                <th>Chegirma</th>
+                                <th>Jami To'lov</th>
+                                <th>Harakatlar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="crm-history-table-body">
+                            <!-- Dynamic history rows in admin.js -->
+                        </tbody>
+                    </table>
+                    <div class="empty-history-box" id="crm-empty-state">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <p>Hozircha sotuvlar tarixi bo'sh. Kassada savdo amalga oshiring.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- POS CALCULATOR POPUP MODAL (Custom prices & sizing select) -->
+    <div class="modal" id="pos-calc-modal">
+        <div class="modal-content pos-calculator-modal">
+            <button class="close-modal-btn" id="close-calc-modal" aria-label="Yopish">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 style="margin-bottom: 0.5rem;" id="calc-product-title">Kiyim Nomi</h3>
+            <span class="detail-tag" id="calc-product-cat" style="margin-bottom: 1.5rem; display: inline-block;">Futbolkalar</span>
+            
+            <form id="pos-calc-form">
+                <div class="calc-form-group">
+                    <label>Sotilayotgan o'lchamni tanlang:</label>
+                    <div class="size-selector" id="calc-size-options" style="margin-bottom: 0.5rem;">
+                        <!-- Sizes render -->
+                    </div>
+                </div>
+
+                <div class="calc-form-group">
+                    <label for="calc-qty">Miqdori (dona):</label>
+                    <div class="calc-qty-input">
+                        <button type="button" class="qty-btn" id="calc-qty-minus" style="width:36px; height:36px;"><i class="fa-solid fa-minus"></i></button>
+                        <input type="number" id="calc-qty" value="1" min="1" style="width: 70px; padding: 0.5rem; border-radius: 8px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--text-primary); text-align: center; font-weight: 700;">
+                        <button type="button" class="qty-btn" id="calc-qty-plus" style="width:36px; height:36px;"><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                </div>
+
+                <div class="calc-form-group">
+                    <label for="calc-unit-price">Sotish narxi (bitta dona uchun - UZS):</label>
+                    <input type="number" id="calc-unit-price" style="width: 100%; padding: 0.8rem; border-radius: 8px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--primary); font-weight: 800; font-size: 1.15rem;" min="0">
+                    <small style="color: var(--text-muted); margin-top: 0.3rem; display: block;">Standard narxi: <span id="calc-std-price">0</span> UZS</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1.5rem;">
+                    <i class="fa-solid fa-cart-arrow-down" style="margin-right: 5px;"></i> Chekka Qo'shish
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container footer-bottom">
+            <p>&copy; 2026 Eco Sports Menswear CRM & POS Panel. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Admin logic script -->
+    <script src="admin.js"></script>
+</body>
+</html>
