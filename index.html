@@ -427,67 +427,131 @@
 
         <!-- DEPARTMENT 4: SOZLAMALAR BO'LIMI (System Configurations) -->
         <div class="dept-section" id="sozlamalar-section" style="display: none;">
-            <div class="container">
-                <section class="pos-grid-container" style="margin-top: 115px; margin-bottom: 50px; max-width: 650px; margin-left: auto; margin-right: auto;">
-                    <h2 style="font-weight: 800; margin-bottom: 0.5rem;">Kassa & Tizim <span class="highlight-text">Sozlamalari</span></h2>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 2rem;">Bot API ulanmalari va kassa xavfsizlik sozlamalari.</p>
+            <div class="container" style="max-width: 1300px; margin-top: 115px;">
+                <div class="settings-layout">
+                    
+                    <!-- CHAP USTUN: Tizim Integratsiyasi va Ma'lumotlar Boshqaruvi -->
+                    <div class="settings-left-col">
+                        
+                        <!-- BLOCK 1: Tizim & Telegram API Sozlamalari -->
+                        <section class="pos-grid-container" style="padding: 1.8rem;">
+                            <h3 style="font-weight: 800; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-sliders" style="color: var(--primary);"></i>
+                                <span>Tizim & Telegram <span class="highlight-text">Integratsiyasi</span></span>
+                            </h3>
+                            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 1.5rem; line-height: 1.4;">Bot API ulanmalari, hisobot chati va kassa administratorlik PIN sozlamalari.</p>
 
-                    <form id="settings-form" class="checkout-form" style="gap: 1.5rem;">
-                        <div class="form-group">
-                            <label for="settings-pin">Sotuvni tasdiqlash uchun Maxsus PIN-kod (4 xonali)</label>
-                            <input type="password" id="settings-pin" maxlength="4" value="7777" style="font-weight: 800; font-size: 1.2rem; width: 150px; text-align: center; letter-spacing: 5px;" required>
-                            <small style="color: var(--text-muted);">Sotishni tasdiqlash jarayonida so'raladigan maxsus auditorlik kassa kodi.</small>
-                        </div>
+                            <form id="settings-form" class="checkout-form" style="gap: 1.2rem;">
+                                <div class="form-group">
+                                    <label for="settings-pin">Sotuvni tasdiqlash uchun Maxsus PIN-kod (4 xonali)</label>
+                                    <input type="password" id="settings-pin" maxlength="4" value="7777" style="font-weight: 800; font-size: 1.15rem; width: 120px; text-align: center; letter-spacing: 5px;" required>
+                                </div>
 
-                        <hr style="border: 0; border-top: 1px solid var(--border-color);">
+                                <div class="form-group">
+                                    <label for="settings-bot-token">Telegram Bot Token (HTTP API Key)</label>
+                                    <input type="text" id="settings-bot-token" value="8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE" required style="font-size: 0.85rem; font-family: monospace;">
+                                </div>
 
-                        <div class="form-group">
-                            <label for="settings-bot-token">Telegram Bot Token (HTTP API Key)</label>
-                            <input type="text" id="settings-bot-token" value="8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE" required>
-                            <small style="color: var(--text-muted);">Mini App buyurtma cheklarini shaxsiy chatga yuborishda foydalanadigan Telegram bot kaliti.</small>
-                        </div>
+                                <div class="form-group">
+                                    <label for="settings-chat-id">Hisobot Yuboriladigan Telegram Chat ID</label>
+                                    <input type="text" id="settings-chat-id" placeholder="Telegram Chat ID raqamingiz (masalan: 648833917)" style="font-size: 0.85rem; font-family: monospace;">
+                                </div>
 
-                        <div class="form-group">
-                            <label for="settings-chat-id">Hisobot Yuboriladigan Telegram Chat ID</label>
-                            <input type="text" id="settings-chat-id" placeholder="Telegram Chat ID raqamingiz (masalan: 648833917)">
-                            <small style="color: var(--text-muted);">Cheklar yuboriladigan Telegram hisob egasining ID raqami. Agar bo'sh qoldirilsa, tizim Mini App-ni ochgan xodimning shaxsiy chatiga jo'natadi.</small>
-                        </div>
+                                <div style="display: flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.05); padding: 0.6rem 1rem; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.15); margin-bottom: 0.5rem;">
+                                    <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981;"></span>
+                                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">🟢 API Webhook: Aktiv (24/7 Serverless Connect)</span>
+                                </div>
 
-                        <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem;">
-                            <i class="fa-solid fa-floppy-disk"></i> SOZLAMALARNI SAQLASH
-                        </button>
-                    </form>
-                </section>
+                                <button type="submit" class="btn btn-primary btn-block btn-glow" style="padding: 0.7rem; font-size: 0.9rem;">
+                                    <i class="fa-solid fa-floppy-disk"></i> SOZLAMALARNI SAQLASH
+                                </button>
+                            </form>
+                        </section>
 
-                <!-- SECTION 2: STAFF (CASHIERS) MANAGEMENT [NEW] -->
-                <section class="pos-grid-container" style="margin-top: 2.5rem; margin-bottom: 50px; max-width: 850px; margin-left: auto; margin-right: auto; padding: 2rem;">
-                    <div class="history-header" style="margin-bottom: 1.5rem;">
-                        <div>
-                            <h2 style="font-weight: 800; margin-bottom: 0.3rem;">Kassirlar (Xodimlar) <span class="highlight-text">Boshqaruvi</span></h2>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem;">Kassa xodimlari ro'yxati, portal parollari va ularga biriktirilgan maxsus savdo tasdiqlash PIN-kodlari.</p>
-                        </div>
-                        <button class="btn btn-primary btn-glow" id="add-cashier-trigger" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
-                            <i class="fa-solid fa-user-plus"></i> Yangi Kassir Qo'shish
-                        </button>
+                        <!-- BLOCK 2: Do'kon Rekvizitlari (Monochrome receipt customizer) [NEW] -->
+                        <section class="pos-grid-container" style="padding: 1.8rem;">
+                            <h3 style="font-weight: 800; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-receipt" style="color: var(--accent);"></i>
+                                <span>Do'kon <span class="highlight-text">Rekvizitlari</span></span>
+                            </h3>
+                            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 1.5rem; line-height: 1.4;">Virtual chekda chop etiladigan kassa rekvizitlari boshqaruvi.</p>
+
+                            <div class="checkout-form" style="gap: 1.2rem;">
+                                <div class="form-group">
+                                    <label for="settings-store-name">Do'kon Nomi (Brand)</label>
+                                    <input type="text" id="settings-store-name" value="ECO SPORTS" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="settings-store-address">Do'kon Manzili (Address)</label>
+                                    <input type="text" id="settings-store-address" value="Tashkent, Yunusobod">
+                                </div>
+                                <div class="form-group">
+                                    <label for="settings-store-phone">Telefon Raqami (Phone)</label>
+                                    <input type="text" id="settings-store-phone" value="+998 90 123 45 67">
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- BLOCK 3: Ma'lumotlar zaxirasi (Backups & cache export) [NEW] -->
+                        <section class="pos-grid-container" style="padding: 1.8rem;">
+                            <h3 style="font-weight: 800; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-database" style="color: #f59e0b;"></i>
+                                <span>Tizim Ma'lumotlari <span class="highlight-text">Zaxirasi</span></span>
+                            </h3>
+                            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 1.5rem; line-height: 1.4;">CRM tizimidagi barcha zaxira ma'lumotlar bazasini yuklab olish yoki qayta tiklash.</p>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                <button class="btn btn-secondary" id="settings-export-db" style="padding: 0.7rem; font-size: 0.8rem; border-radius: 8px;">
+                                    <i class="fa-solid fa-download"></i> Eksport (.JSON)
+                                </button>
+                                <button class="btn btn-secondary" id="settings-import-db-btn" style="padding: 0.7rem; font-size: 0.8rem; border-radius: 8px;">
+                                    <i class="fa-solid fa-upload"></i> Import (.JSON)
+                                </button>
+                            </div>
+                            <input type="file" id="settings-import-db-file" accept=".json" style="display: none;">
+                            
+                            <button class="btn btn-block" id="settings-reset-db" style="padding: 0.7rem; font-size: 0.85rem; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 8px;">
+                                <i class="fa-solid fa-triangle-exclamation"></i> TIZIMNI TO'LIQ RESET QILISH
+                            </button>
+                        </section>
                     </div>
 
-                    <div style="overflow-x: auto;">
-                        <table class="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>Ismi-Sharifi</th>
-                                    <th>Login (Username)</th>
-                                    <th>Kirish Paroli</th>
-                                    <th>POS Tasdiqlash PIN</th>
-                                    <th>Harakatlar</th>
-                                </tr>
-                            </thead>
-                            <tbody id="settings-cashiers-table-body">
-                                <!-- Rendered dynamically by app.js -->
-                            </tbody>
-                        </table>
+                    <!-- O'NG USTUN: Kassirlar (Xodimlar) Boshqaruvi -->
+                    <div class="settings-right-col">
+                        <section class="pos-grid-container" style="padding: 1.8rem;">
+                            <div class="history-header" style="margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                                <div>
+                                    <h3 style="font-weight: 800; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 10px;">
+                                        <i class="fa-solid fa-users" style="color: var(--primary);"></i>
+                                        <span>Kassirlar (Xodimlar) <span class="highlight-text">Boshqaruvi</span></span>
+                                    </h3>
+                                    <p style="color: var(--text-secondary); font-size: 0.8rem;">Portal login parollari va maxsus savdo tasdiqlash PIN-kodlari.</p>
+                                </div>
+                                <button class="btn btn-primary btn-glow" id="add-cashier-trigger" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
+                                    <i class="fa-solid fa-user-plus"></i> Yangi Kassir
+                                </button>
+                            </div>
+
+                            <div style="overflow-x: auto;">
+                                <table class="crm-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Ismi-Sharifi</th>
+                                            <th>Login</th>
+                                            <th>Parol</th>
+                                            <th>PIN</th>
+                                            <th style="text-align: center;">Harakatlar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="settings-cashiers-table-body">
+                                        <!-- Rendered dynamically by app.js -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
                     </div>
-                </section>
+                    
+                </div>
             </div>
         </div>
 
@@ -578,8 +642,8 @@
                 <div class="receipt-paper-card" style="background: #111827; border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; position: relative;">
                     <!-- Receipt Header -->
                     <div class="text-center" style="margin-bottom: 1.2rem;">
-                        <h4 style="font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; color: var(--primary);">ECO SPORTS</h4>
-                        <p style="color: var(--text-muted); font-size: 0.75rem;">Premium Sportswear Terminal</p>
+                        <h4 id="receipt-store-name" style="font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; color: var(--primary);">ECO SPORTS</h4>
+                        <p id="receipt-store-desc" style="color: var(--text-muted); font-size: 0.75rem;">Premium Sportswear Terminal</p>
                     </div>
                     
                     <div style="display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 1rem; font-size: 0.8rem; color: var(--text-secondary);">

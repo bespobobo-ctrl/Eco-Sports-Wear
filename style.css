@@ -1095,3 +1095,25 @@ button, input, select, textarea {
         padding: 0.8rem;
     }
 }
+
+/* 15. MULTI-COLUMN SYMMETRIC SETTINGS SYSTEM */
+.settings-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 2rem;
+    align-items: start;
+    margin-bottom: 50px;
+}
+
+.settings-left-col, .settings-right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+@media (max-width: 1024px) {
+    .settings-layout {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}
