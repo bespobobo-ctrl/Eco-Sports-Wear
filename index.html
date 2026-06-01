@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eco Sports Menswear - Premium Erkaklar Sport Kiyimlari</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Google Fonts: Plus Jakarta Sans for futuristic, high-end sporty branding -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for clean icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Premium Header & Navbar -->
+    <header class="main-header">
+        <div class="container navbar">
+            <a href="#" class="logo">
+                <span class="logo-eco">ECO</span>
+                <span class="logo-sports">SPORTS</span>
+            </a>
+            
+            <nav class="nav-menu">
+                <ul>
+                    <li><a href="#" class="nav-link active" data-cat="all">Barchasi</a></li>
+                    <li><a href="#" class="nav-link" data-cat="tshirt">Futbolkalar</a></li>
+                    <li><a href="#" class="nav-link" data-cat="shorts">Shortilar</a></li>
+                    <li><a href="#" class="nav-link" data-cat="tracksuit">Sportivkalar</a></li>
+                    <li><a href="#" class="nav-link" data-cat="joggers">Trikolar</a></li>
+                </ul>
+            </nav>
+
+            <div class="nav-actions">
+                <div class="search-bar">
+                    <input type="text" id="search-input" placeholder="Mahsulot qidirish...">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                </div>
+                <button class="cart-toggle-btn" id="cart-toggle" aria-label="Xarid savatchasi">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span class="cart-badge" id="cart-badge-count">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Dynamic Hero Showcase -->
+    <section class="hero-section">
+        <div class="hero-glow"></div>
+        <div class="container hero-content">
+            <div class="hero-text-area">
+                <span class="hero-tag">Premium Ekologik Kolleksiya 2026</span>
+                <h1>Tabiat bilan uyg'unlikda <br><span class="highlight-text">YUKSAK NATIJALAR</span></h1>
+                <p>Qayta ishlangan yuqori texnologiyali materiallardan tayyorlangan, nafas oluvchi va harakatlanish erkinligini beruvchi premium erkaklar kiyimi. Mashg'ulotlaringiz va kundalik hayotingiz uchun ideal tanlov.</p>
+                <div class="hero-buttons">
+                    <a href="#catalog" class="btn btn-primary btn-glow">Katalogga o'tish</a>
+                    <a href="#about" class="btn btn-secondary">Biz haqimizda</a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-card">
+                    <img src="assets/tracksuit.png" alt="Premium Tracksuit Set" class="hero-product-img">
+                    <div class="hero-card-info">
+                        <h3>Hybrid Eco Tracksuit</h3>
+                        <span class="price">720,000 UZS</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Brand Values -->
+    <section class="values-section" id="about">
+        <div class="container values-grid">
+            <div class="value-card">
+                <div class="value-icon"><i class="fa-solid fa-leaf"></i></div>
+                <h3>100% Ekologik</h3>
+                <p>Qayta ishlangan okean plastiklari va organik paxtadan tayyorlangan matolar.</p>
+            </div>
+            <div class="value-card">
+                <div class="value-icon"><i class="fa-solid fa-bolt"></i></div>
+                <h3>Pro-Performance</h3>
+                <p>Namlikni tez tortuvchi va havo o'tkazuvchanlik texnologiyasi.</p>
+            </div>
+            <div class="value-card">
+                <div class="value-icon"><i class="fa-solid fa-circle-check"></i></div>
+                <h3>Premium Sifat</h3>
+                <p>Chidamlilik, mustahkam choklar va har qanday sharoitga bardoshli matolar.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Catalog -->
+    <main class="catalog-section" id="catalog">
+        <div class="container">
+            <div class="section-header">
+                <h2>Kiyimlar <span class="highlight-text">Katalogi</span></h2>
+                <div class="filter-controls">
+                    <button class="filter-btn active" data-filter="all">Barchasi</button>
+                    <button class="filter-btn" data-filter="tshirt">Futbolkalar</button>
+                    <button class="filter-btn" data-filter="shorts">Shortilar</button>
+                    <button class="filter-btn" data-filter="tracksuit">Sportivkalar</button>
+                    <button class="filter-btn" data-filter="joggers">Trikolar</button>
+                </div>
+            </div>
+
+            <!-- Products Grid -->
+            <div class="products-grid" id="products-grid">
+                <!-- Products dynamically rendered by app.js -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Floating Shopping Cart Sidebar (Drawer) -->
+    <div class="cart-sidebar" id="cart-sidebar">
+        <div class="cart-header">
+            <h3>Xarid Savatchasi (<span id="cart-total-count">0</span>)</h3>
+            <button class="close-cart-btn" id="close-cart" aria-label="Savatchani yopish">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        
+        <div class="cart-items-container" id="cart-items">
+            <!-- Dynamic Cart Items by app.js -->
+        </div>
+
+        <div class="cart-footer">
+            <div class="cart-summary">
+                <span>Jami summa:</span>
+                <span class="total-price" id="cart-subtotal">0 UZS</span>
+            </div>
+            <button class="btn btn-primary btn-block" id="checkout-btn" disabled>Buyurtma berish</button>
+        </div>
+    </div>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Product Detail Modal -->
+    <div class="modal" id="product-detail-modal">
+        <div class="modal-content product-detail-layout">
+            <button class="close-modal-btn" id="close-detail-modal" aria-label="Yopish">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="detail-gallery">
+                <img src="" id="detail-img" alt="Product Image">
+            </div>
+            <div class="detail-info">
+                <span class="detail-tag" id="detail-category">ECO SPORT</span>
+                <h2 id="detail-title">Mahsulot nomi</h2>
+                <div class="detail-price" id="detail-price">0 UZS</div>
+                <p class="detail-description" id="detail-desc">Mahsulot haqida batafsil ma'lumot.</p>
+                
+                <div class="detail-specifications">
+                    <div class="spec-item">
+                        <span class="spec-label">Tarkibi:</span>
+                        <span class="spec-val" id="detail-material">85% Organic Polyester, 15% Elastane</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="spec-label">Fit:</span>
+                        <span class="spec-val" id="detail-fit">Athletic Fit</span>
+                    </div>
+                </div>
+
+                <div class="detail-options">
+                    <h4>O'lchamni tanlang:</h4>
+                    <div class="size-selector" id="size-options">
+                        <!-- Dynamic Sizes -->
+                    </div>
+                </div>
+
+                <div class="detail-actions">
+                    <button class="btn btn-primary btn-glow" id="detail-add-to-cart">
+                        <i class="fa-solid fa-cart-plus"></i> Savatchaga qo'shish
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div class="modal" id="checkout-modal">
+        <div class="modal-content checkout-layout">
+            <button class="close-modal-btn" id="close-checkout-modal" aria-label="Yopish">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h2>Buyurtmani <span class="highlight-text">Rasmiylashtirish</span></h2>
+            <p>Iltimos, yetkazib berish va bog'lanish uchun ma'lumotlaringizni to'ldiring. Buyurtmangiz tasdiqlanishi bilan menejerlarimiz siz bilan bog'lanishadi.</p>
+
+            <form id="checkout-form" class="checkout-form">
+                <div class="form-group">
+                    <label for="customer-name">Ism va Familiyangiz</label>
+                    <input type="text" id="customer-name" required placeholder="Masalan: Asadbek Karimov">
+                </div>
+                <div class="form-group">
+                    <label for="customer-phone">Telefon Raqamingiz</label>
+                    <input type="tel" id="customer-phone" required placeholder="Masalan: +998 (90) 123-45-67">
+                </div>
+                <div class="form-group">
+                    <label for="customer-address">Yetkazib berish manzili</label>
+                    <textarea id="customer-address" required placeholder="Shahar, tuman, ko'cha, uy, xonadon..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="payment-method">To'lov Turi</label>
+                    <select id="payment-method" required>
+                        <option value="cash">Qabul qilganda naqd pul / karta orqali</option>
+                        <option value="click">CLICK / Payme (Oldindan to'lov)</option>
+                    </select>
+                </div>
+
+                <div class="order-summary-box">
+                    <h4>Sizning buyurtmangiz:</h4>
+                    <div id="checkout-summary-items" class="summary-items">
+                        <!-- List of items dynamically populated -->
+                    </div>
+                    <hr>
+                    <div class="summary-total">
+                        <span>Jami:</span>
+                        <strong id="checkout-total-price">0 UZS</strong>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block btn-glow">
+                    <i class="fa-solid fa-circle-check"></i> Buyurtmani Tasdiqlash
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Order Success Modal -->
+    <div class="modal" id="success-modal">
+        <div class="modal-content success-layout text-center">
+            <div class="success-icon-badge">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h2>Muvaffaqiyatli buyurtma berildi!</h2>
+            <p>Hurmatli <strong id="success-user-name">Mijoz</strong>, buyurtmangiz qabul qilindi. Menejerimiz tez orada siz ko'rsatgan <strong id="success-user-phone">+998...</strong> raqamiga bog'lanadi.</p>
+            <p class="order-id-label">Buyurtma ID: <span id="success-order-id">#ECO-10023</span></p>
+            <button class="btn btn-primary" id="close-success-btn">Katalogga qaytish</button>
+        </div>
+    </div>
+
+    <!-- Footer Section -->
+    <footer class="main-footer">
+        <div class="container footer-grid">
+            <div class="footer-brand">
+                <a href="#" class="logo">
+                    <span class="logo-eco">ECO</span>
+                    <span class="logo-sports">SPORTS</span>
+                </a>
+                <p>Erkaklar uchun yuqori sifatli, ekologik toza materiallardan tayyorlangan premium sport kiyimlari do'koni. Mukammallikka biz bilan erishing.</p>
+                <div class="social-links">
+                    <a href="#"><i class="fa-brands fa-telegram"></i></a>
+                    <a href="#"><i class="fa-brands fa-instagram"></i></a>
+                    <a href="#"><i class="fa-brands fa-youtube"></i></a>
+                    <a href="#"><i class="fa-brands fa-facebook"></i></a>
+                </div>
+            </div>
+            <div class="footer-links">
+                <h4>Kategoriyalar</h4>
+                <ul>
+                    <li><a href="#catalog" data-cat="tshirt" class="footer-cat-link">Futbolkalar</a></li>
+                    <li><a href="#catalog" data-cat="shorts" class="footer-cat-link">Shortilar</a></li>
+                    <li><a href="#catalog" data-cat="tracksuit" class="footer-cat-link">Sportivkalar</a></li>
+                    <li><a href="#catalog" data-cat="joggers" class="footer-cat-link">Trikolar</a></li>
+                </ul>
+            </div>
+            <div class="footer-contact">
+                <h4>Aloqa</h4>
+                <ul>
+                    <li><i class="fa-solid fa-location-dot"></i> Toshkent shahri, Yunusobod tumani</li>
+                    <li><i class="fa-solid fa-phone"></i> +998 (99) 888-77-66</li>
+                    <li><i class="fa-solid fa-envelope"></i> info@ecosports.uz</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="container">
+                <p>&copy; 2026 Eco Sports Menswear. Barcha huquqlar himoyalangan.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Core App Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
