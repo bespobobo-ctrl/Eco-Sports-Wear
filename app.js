@@ -10,6 +10,10 @@ if (tg) {
     tg.ready();
     tg.expand();
     tg.enableClosingConfirmation();
+    
+    // Set native header and background color to blend perfectly with our dark app theme
+    tg.setHeaderColor('#090d16');
+    tg.setBackgroundColor('#090d16');
 }
 
 // 2. PRODUCT DATASET
