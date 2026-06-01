@@ -1099,14 +1099,15 @@ button, input, select, textarea {
 /* 15. DYNAMIC MODULAR SETTINGS GRID SYSTEM */
 .settings-grid-layout {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
-    align-items: stretch;
+    grid-template-columns: 1fr 1.6fr;
+    gap: 2rem;
+    align-items: start;
     margin-bottom: 50px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 991px) {
     .settings-grid-layout {
         grid-template-columns: 1fr;
+        gap: 1.5rem;
     }
 }

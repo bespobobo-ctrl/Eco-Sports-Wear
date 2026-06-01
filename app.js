@@ -818,17 +818,9 @@ function populateSettings() {
     const tokenInput = document.getElementById("settings-bot-token");
     const chatInput = document.getElementById("settings-chat-id");
     
-    const storeNameInput = document.getElementById("settings-store-name");
-    const storeAddressInput = document.getElementById("settings-store-address");
-    const storePhoneInput = document.getElementById("settings-store-phone");
-    
     if (pinInput) pinInput.value = appConfig.pin;
     if (tokenInput) tokenInput.value = appConfig.botToken;
     if (chatInput) chatInput.value = appConfig.chatId || "";
-    
-    if (storeNameInput) storeNameInput.value = appConfig.storeName || "ECO SPORTS";
-    if (storeAddressInput) storeAddressInput.value = appConfig.storeAddress || "Tashkent, Yunusobod";
-    if (storePhoneInput) storePhoneInput.value = appConfig.storePhone || "+998 90 123 45 67";
     
     renderCashiersList();
 }
@@ -1150,10 +1142,6 @@ function setupEventListeners() {
             const tokenVal = settingsTokenInput.value.trim();
             const chatVal = settingsChatInput.value.trim();
             
-            const nameVal = document.getElementById("settings-store-name")?.value.trim() || "ECO SPORTS";
-            const addressVal = document.getElementById("settings-store-address")?.value.trim() || "";
-            const phoneVal = document.getElementById("settings-store-phone")?.value.trim() || "";
-            
             if (pinVal.length !== 4 || isNaN(pinVal)) {
                 alert("Kassa PIN-kodi 4 xonali raqam bo'lishi shart!");
                 return;
@@ -1162,9 +1150,6 @@ function setupEventListeners() {
             appConfig.pin = pinVal;
             appConfig.botToken = tokenVal;
             appConfig.chatId = chatVal;
-            appConfig.storeName = nameVal;
-            appConfig.storeAddress = addressVal;
-            appConfig.storePhone = phoneVal;
             
             localStorage.setItem("eco_sports_config", JSON.stringify(appConfig));
             
@@ -1257,76 +1242,7 @@ function setupEventListeners() {
         });
     }
 
-    // 14.5 BACKUPS & RESET CONTROL LISTENERS [NEW]
-    const exportBtn = document.getElementById("settings-export-db");
-    const importBtn = document.getElementById("settings-import-db-btn");
-    const importFileInput = document.getElementById("settings-import-db-file");
-    const resetBtn = document.getElementById("settings-reset-db");
-
-    if (exportBtn) {
-        exportBtn.addEventListener("click", () => {
-            const backupData = {
-                salesHistory: JSON.parse(localStorage.getItem("eco_sports_sales_history")) || [],
-                expenses: JSON.parse(localStorage.getItem("eco_sports_expenses")) || [],
-                inventory: JSON.parse(localStorage.getItem("eco_sports_inventory")) || {},
-                config: JSON.parse(localStorage.getItem("eco_sports_config")) || {},
-                users: JSON.parse(localStorage.getItem("eco_sports_users")) || []
-            };
-
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-            const downloadAnchor = document.createElement('a');
-            
-            const now = new Date();
-            const dateSuffix = now.getFullYear() + "-" + (now.getMonth()+1) + "-" + now.getDate();
-            
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", `eco_sports_backup_${dateSuffix}.json`);
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
-        });
-    }
-
-    if (importBtn && importFileInput) {
-        importBtn.addEventListener("click", () => {
-            importFileInput.click();
-        });
-
-        importFileInput.addEventListener("change", (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const imported = JSON.parse(evt.target.result);
-                    
-                    if (imported.salesHistory) localStorage.setItem("eco_sports_sales_history", JSON.stringify(imported.salesHistory));
-                    if (imported.expenses) localStorage.setItem("eco_sports_expenses", JSON.stringify(imported.expenses));
-                    if (imported.inventory) localStorage.setItem("eco_sports_inventory", JSON.stringify(imported.inventory));
-                    if (imported.config) localStorage.setItem("eco_sports_config", JSON.stringify(imported.config));
-                    if (imported.users) localStorage.setItem("eco_sports_users", JSON.stringify(imported.users));
-
-                    alert("Zaxira nusxasi muvaffaqiyatli tiklandi! Tizim qayta yuklanadi.");
-                    location.reload();
-                } catch (err) {
-                    alert("Zaxira faylini o'qishda xatolik yuz berdi. Iltimos, to'g'ri JSON formatdagi fayl yuklang.");
-                }
-            };
-            reader.readAsText(file);
-        });
-    }
-
-    if (resetBtn) {
-        resetBtn.addEventListener("click", () => {
-            if (confirm("DIQQAT! Tizimdagi barcha savdolar, xarajatlar, zaxiralar va kassirlar o'chib ketadi. Butunlay tozalashni xohlaysizmi?")) {
-                localStorage.clear();
-                sessionStorage.clear();
-                alert("Tizim to'liq tozalandi! Portal qayta yuklanadi.");
-                location.reload();
-            }
-        });
-    }
+    // (Database backup & reset section removed for cleanliness)
 }
 
 // 13. INITIALIZATION
