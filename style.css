@@ -1096,24 +1096,17 @@ button, input, select, textarea {
     }
 }
 
-/* 15. MULTI-COLUMN SYMMETRIC SETTINGS SYSTEM */
-.settings-layout {
+/* 15. DYNAMIC MODULAR SETTINGS GRID SYSTEM */
+.settings-grid-layout {
     display: grid;
-    grid-template-columns: 1fr 1.25fr;
-    gap: 2rem;
-    align-items: start;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    align-items: stretch;
     margin-bottom: 50px;
 }
 
-.settings-left-col, .settings-right-col {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-}
-
-@media (max-width: 1024px) {
-    .settings-layout {
+@media (max-width: 768px) {
+    .settings-grid-layout {
         grid-template-columns: 1fr;
-        gap: 2rem;
     }
 }
