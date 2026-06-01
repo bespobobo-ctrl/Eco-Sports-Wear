@@ -40,7 +40,7 @@ const PRODUCTS = [
     { id: 404, supplier: "Xitoy", name: "Xitoy - Triko", price: 280000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] }
 ];
 
-// 3. APPLICATION STATE
+// 3. APPLICATION STATE & DATABASES
 let state = {
     cart: [],
     selectedProduct: null,
@@ -50,6 +50,22 @@ let state = {
     searchQuery: "",
     salesHistory: []
 };
+
+// Initial default configuration parameters
+let appConfig = {
+    pin: "7777",
+    botToken: "8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE",
+    chatId: "648833917"
+};
+
+// Default stock allocation of 50 units for each menswear catalog product
+const defaultInventory = {};
+PRODUCTS.forEach(p => {
+    defaultInventory[p.id] = 50;
+});
+
+let inventory = defaultInventory;
+let expenses = [];
 
 // 4. DOM ELEMENTS
 // Authentication Screen elements
@@ -362,6 +378,16 @@ async function completeSale() {
     state.salesHistory.push(newTx);
     localStorage.setItem("eco_sports_sales_history", JSON.stringify(state.salesHistory));
 
+    // Subtract purchased items from stock inventory
+    state.cart.forEach(item => {
+        const prodId = item.product.id;
+        const qty = item.qty;
+        if (inventory[prodId] !== undefined) {
+            inventory[prodId] = Math.max(0, inventory[prodId] - qty);
+        }
+    });
+    localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
+
     // Formulate a beautiful invoice message in corporate HTML format
     let orderMsg = `<b>💼 ECO SPORTS - TIZIMDA SOTUV YAKUNLANDI</b>\n`;
     orderMsg += `<b>Chek ID:</b> <code>#${orderId}</code>\n`;
@@ -385,10 +411,10 @@ async function completeSale() {
     console.log(orderMsg);
 
     // Send the structured HTML invoice directly to the Admin's Telegram chat
-    const targetChatId = tg?.initDataUnsafe?.user?.id || "648833917"; 
+    const targetChatId = appConfig.chatId || tg?.initDataUnsafe?.user?.id || "648833917"; 
     if (targetChatId) {
         try {
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            await fetch(`https://api.telegram.org/bot${appConfig.botToken}/sendMessage`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -505,7 +531,7 @@ function handlePinSubmit(e) {
     e.preventDefault();
     const pinVal = pinInput.value;
 
-    if (pinVal === "7777") {
+    if (pinVal === appConfig.pin) {
         pinErrorMsg.style.display = "none";
         closePinModalOverlay();
         completeSale();
@@ -592,6 +618,175 @@ function renderHistoryTable() {
             }
         });
     });
+}
+
+// 11.5 WAREHOUSE (OMBOR) INVENTORY RENDERER
+function renderOmborTable() {
+    const tableBody = document.getElementById("ombor-inventory-table-body");
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = "";
+    
+    const searchVal = document.getElementById("ombor-search-input")?.value.toLowerCase() || "";
+    const activeSupplierBtn = document.querySelector("[data-ombor-supplier].active");
+    const activeSupplier = activeSupplierBtn ? activeSupplierBtn.dataset.omborSupplier : "all";
+    
+    const filtered = PRODUCTS.filter(p => {
+        const matchesSupplier = activeSupplier === "all" || p.supplier === activeSupplier;
+        const matchesSearch = p.name.toLowerCase().includes(searchVal);
+        return matchesSupplier && matchesSearch;
+    });
+    
+    if (filtered.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                    Mos mahsulotlar topilmadi
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    filtered.forEach(p => {
+        const qty = inventory[p.id] || 0;
+        let statusBadge = "";
+        
+        if (qty === 0) {
+            statusBadge = `<span class="channel-tag" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">Tugadi</span>`;
+        } else if (qty <= 10) {
+            statusBadge = `<span class="channel-tag" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">Kam qoldi</span>`;
+        } else {
+            statusBadge = `<span class="channel-tag" style="background: rgba(16, 185, 129, 0.1); color: var(--primary);">Etarli</span>`;
+        }
+        
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td><strong>#${p.id}</strong></td>
+            <td>${p.supplier}</td>
+            <td>${p.name}</td>
+            <td><span style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: var(--accent);">${p.category === 'tshirt' ? 'Futbolka' : p.category === 'shorts' ? 'Shortik' : p.category === 'tracksuit' ? 'Sportivka' : 'Triko'}</span></td>
+            <td>${formatPrice(p.price)}</td>
+            <td><strong>${qty} dona</strong></td>
+            <td>${statusBadge}</td>
+            <td>
+                <div style="display: flex; gap: 0.4rem;">
+                    <button class="qty-btn add-stock-btn" data-id="${p.id}" style="background: var(--primary-glow); border-color: rgba(16, 185, 129, 0.2); color: var(--primary); width:30px; height:30px;" title="Qo'shish">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <button class="qty-btn sub-stock-btn" data-id="${p.id}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width:30px; height:30px;" title="Kamaytirish">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+    
+    tableBody.querySelectorAll(".add-stock-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = parseInt(btn.dataset.id);
+            const amount = parseInt(prompt("Qancha miqdor qo'shmoqchisiz?", "10")) || 0;
+            if (amount > 0) {
+                inventory[id] = (inventory[id] || 0) + amount;
+                localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
+                renderOmborTable();
+            }
+        });
+    });
+    
+    tableBody.querySelectorAll(".sub-stock-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = parseInt(btn.dataset.id);
+            const amount = parseInt(prompt("Qancha miqdor ayirmoqchisiz?", "5")) || 0;
+            if (amount > 0) {
+                inventory[id] = Math.max(0, (inventory[id] || 0) - amount);
+                localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
+                renderOmborTable();
+            }
+        });
+    });
+}
+
+// 11.6 BUXGALTERIYA FINANCIAL MODULES RENDERER
+function renderBuxgalteriya() {
+    const buxRevenue = document.getElementById("bux-revenue");
+    const buxCogs = document.getElementById("bux-cogs");
+    const buxExpenses = document.getElementById("bux-expenses");
+    const buxProfit = document.getElementById("bux-profit");
+    const expenseTableBody = document.getElementById("bux-expense-table-body");
+    const expenseEmptyState = document.getElementById("bux-empty-state");
+    
+    if (!buxRevenue) return;
+    
+    const revenue = state.salesHistory.reduce((sum, tx) => sum + tx.totalPaid, 0);
+    const cogs = Math.round(revenue * 0.6); // 60% standard COGS
+    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const netProfit = revenue - cogs - totalExpenses;
+    
+    buxRevenue.textContent = formatPrice(revenue);
+    buxCogs.textContent = formatPrice(cogs);
+    buxExpenses.textContent = formatPrice(totalExpenses);
+    buxProfit.textContent = formatPrice(netProfit);
+    
+    expenseTableBody.innerHTML = "";
+    
+    if (expenses.length === 0) {
+        expenseEmptyState.style.display = "block";
+        return;
+    }
+    
+    expenseEmptyState.style.display = "none";
+    
+    [...expenses].reverse().forEach((exp, idx) => {
+        const row = document.createElement("tr");
+        const actualIdx = expenses.length - 1 - idx;
+        
+        let catLabel = "";
+        switch (exp.category) {
+            case "rent": catLabel = "Arenda"; break;
+            case "salary": catLabel = "Xodim oyligi"; break;
+            case "transport": catLabel = "Yo'lkira / Dostavka"; break;
+            case "tax": catLabel = "Soliq / Kommunal"; break;
+            default: catLabel = "Boshqa";
+        }
+        
+        row.innerHTML = `
+            <td><strong>#${exp.id}</strong></td>
+            <td>${exp.timestamp}</td>
+            <td>${exp.description}</td>
+            <td><span class="channel-tag" style="background: rgba(6, 182, 212, 0.1); color: var(--accent);">${catLabel}</span></td>
+            <td style="font-weight: 800; color: #ef4444;">-${formatPrice(exp.amount)}</td>
+            <td>
+                <button class="qty-btn delete-expense-btn" data-idx="${actualIdx}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width:30px; height:30px;" title="O'chirish">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </td>
+        `;
+        expenseTableBody.appendChild(row);
+    });
+    
+    expenseTableBody.querySelectorAll(".delete-expense-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            if (confirm("Ushbu xarajatni o'chirmoqchimisiz?")) {
+                const idx = parseInt(btn.dataset.idx);
+                expenses.splice(idx, 1);
+                localStorage.setItem("eco_sports_expenses", JSON.stringify(expenses));
+                renderBuxgalteriya();
+            }
+        });
+    });
+}
+
+// 11.7 POPULATE SYSTEM SETTINGS (SOZLAMALAR)
+function populateSettings() {
+    const pinInput = document.getElementById("settings-pin");
+    const tokenInput = document.getElementById("settings-bot-token");
+    const chatInput = document.getElementById("settings-chat-id");
+    
+    if (pinInput) pinInput.value = appConfig.pin;
+    if (tokenInput) tokenInput.value = appConfig.botToken;
+    if (chatInput) chatInput.value = appConfig.chatId || "";
 }
 
 // 12. GENERAL CONTROLS SETUP
@@ -722,6 +917,151 @@ function setupEventListeners() {
             renderHistoryTable();
         }
     });
+
+    // 13. DEPARTMENT TABS ROUTING SYSTEM
+    const deptTabs = document.querySelectorAll(".dept-tab-btn");
+    const sections = document.querySelectorAll(".dept-section");
+    
+    deptTabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            const targetDept = tab.dataset.dept;
+            
+            deptTabs.forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+            
+            sections.forEach(sec => {
+                if (sec.id === `${targetDept}-section`) {
+                    sec.style.display = "block";
+                    sec.classList.add("active-section");
+                } else {
+                    sec.style.display = "none";
+                    sec.classList.remove("active-section");
+                }
+            });
+            
+            if (targetDept === "ombor") {
+                renderOmborTable();
+            } else if (targetDept === "buxgalteriya") {
+                renderBuxgalteriya();
+            } else if (targetDept === "sozlamalar") {
+                populateSettings();
+            }
+        });
+    });
+
+    // Ombor Inventory listeners
+    const omborSearch = document.getElementById("ombor-search-input");
+    if (omborSearch) {
+        omborSearch.addEventListener("input", renderOmborTable);
+    }
+    
+    const omborSupplierBtns = document.querySelectorAll("[data-ombor-supplier]");
+    omborSupplierBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            omborSupplierBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            renderOmborTable();
+        });
+    });
+
+    // Buxgalteriya Expense triggers
+    const expenseModal = document.getElementById("bux-expense-modal");
+    const addExpenseTrigger = document.getElementById("add-expense-trigger");
+    const closeExpenseModal = document.getElementById("close-expense-modal");
+    const expenseForm = document.getElementById("bux-expense-form");
+    const expenseAmountInput = document.getElementById("expense-amount");
+    const expenseDescInput = document.getElementById("expense-desc");
+    const expenseCatInput = document.getElementById("expense-cat");
+    const clearExpensesBtn = document.getElementById("bux-clear-expenses");
+    
+    if (addExpenseTrigger && expenseModal) {
+        addExpenseTrigger.addEventListener("click", () => {
+            expenseAmountInput.value = "";
+            expenseDescInput.value = "";
+            expenseCatInput.selectedIndex = 0;
+            expenseModal.classList.add("open");
+        });
+    }
+    
+    if (closeExpenseModal && expenseModal) {
+        const closeExpenseModalOverlay = () => expenseModal.classList.remove("open");
+        closeExpenseModal.addEventListener("click", closeExpenseModalOverlay);
+        expenseModal.addEventListener("click", (e) => {
+            if (e.target === expenseModal) closeExpenseModalOverlay();
+        });
+    }
+    
+    if (expenseForm) {
+        expenseForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            
+            const amount = parseFloat(expenseAmountInput.value) || 0;
+            const desc = expenseDescInput.value.trim();
+            const cat = expenseCatInput.value;
+            
+            if (amount <= 0 || !desc) return;
+            
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('uz-UZ') + " " + now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+            
+            const newExpense = {
+                id: "EXP-" + Math.floor(1000 + Math.random() * 9000),
+                timestamp: dateStr,
+                description: desc,
+                category: cat,
+                amount: amount
+            };
+            
+            expenses.push(newExpense);
+            localStorage.setItem("eco_sports_expenses", JSON.stringify(expenses));
+            
+            renderBuxgalteriya();
+            expenseModal.classList.remove("open");
+        });
+    }
+    
+    if (clearExpensesBtn) {
+        clearExpensesBtn.addEventListener("click", () => {
+            if (confirm("Barcha xarajatlar tarixini o'chirmoqchimisiz? Buni qaytarib bo'lmaydi.")) {
+                expenses = [];
+                localStorage.setItem("eco_sports_expenses", JSON.stringify([]));
+                renderBuxgalteriya();
+            }
+        });
+    }
+
+    // Sozlamalar settings listener
+    const settingsForm = document.getElementById("settings-form");
+    const settingsPinInput = document.getElementById("settings-pin");
+    const settingsTokenInput = document.getElementById("settings-bot-token");
+    const settingsChatInput = document.getElementById("settings-chat-id");
+    
+    if (settingsForm) {
+        settingsForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            
+            const pinVal = settingsPinInput.value.trim();
+            const tokenVal = settingsTokenInput.value.trim();
+            const chatVal = settingsChatInput.value.trim();
+            
+            if (pinVal.length !== 4 || isNaN(pinVal)) {
+                alert("Kassa PIN-kodi 4 xonali raqam bo'lishi shart!");
+                return;
+            }
+            
+            appConfig.pin = pinVal;
+            appConfig.botToken = tokenVal;
+            appConfig.chatId = chatVal;
+            
+            localStorage.setItem("eco_sports_config", JSON.stringify(appConfig));
+            
+            if (tg && tg.HapticFeedback) {
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+            
+            alert("Tizim sozlamalari muvaffaqiyatli saqlandi!");
+        });
+    }
 }
 
 // 13. INITIALIZATION
@@ -738,6 +1078,30 @@ document.addEventListener("DOMContentLoaded", () => {
         state.salesHistory = JSON.parse(savedLogs);
     } else {
         state.salesHistory = [];
+    }
+
+    // Load inventory database
+    const savedInventory = localStorage.getItem("eco_sports_inventory");
+    if (savedInventory) {
+        inventory = JSON.parse(savedInventory);
+    } else {
+        localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
+    }
+
+    // Load expenses database
+    const savedExpenses = localStorage.getItem("eco_sports_expenses");
+    if (savedExpenses) {
+        expenses = JSON.parse(savedExpenses);
+    } else {
+        localStorage.setItem("eco_sports_expenses", JSON.stringify(expenses));
+    }
+
+    // Load settings configurations
+    const savedConfig = localStorage.getItem("eco_sports_config");
+    if (savedConfig) {
+        appConfig = JSON.parse(savedConfig);
+    } else {
+        localStorage.setItem("eco_sports_config", JSON.stringify(appConfig));
     }
 
     setupEventListeners();

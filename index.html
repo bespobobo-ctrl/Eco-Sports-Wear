@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Eco Sports - POS Kassa & CRM Tizimi</title>
+    <title>Eco Sports - Enterprise Kassa & CRM Tizimi</title>
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Google Fonts -->
@@ -64,7 +64,7 @@
         </div>
     </div>
 
-    <!-- SCREEN 2: MAIN CRM & POS DASHBOARD (Hidden by default) -->
+    <!-- SCREEN 2: MAIN MULTI-DEPARTMENT DASHBOARD (Hidden by default) -->
     <div class="dashboard-wrapper" id="dashboard-screen" style="display: none;">
         
         <!-- Header / Navigation -->
@@ -75,6 +75,32 @@
                     <span class="logo-sports">SPORTS</span>
                     <span class="admin-badge">CRM PANEL</span>
                 </div>
+                
+                <!-- Central Department Tab Selector -->
+                <nav class="nav-menu">
+                    <ul class="dept-tabs">
+                        <li>
+                            <button class="dept-tab-btn active" data-dept="sotuv">
+                                <i class="fa-solid fa-cash-register"></i> Sotuv Bo'limi
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dept-tab-btn" data-dept="ombor">
+                                <i class="fa-solid fa-warehouse"></i> Ombor Bo'limi
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dept-tab-btn" data-dept="buxgalteriya">
+                                <i class="fa-solid fa-wallet"></i> Buxgalteriya
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dept-tab-btn" data-dept="sozlamalar">
+                                <i class="fa-solid fa-sliders"></i> Sozlamalar
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
                 
                 <div class="nav-actions">
                     <div class="cashier-badge">
@@ -88,178 +114,351 @@
             </div>
         </header>
 
-        <!-- POS Terminal Main Layout -->
-        <div class="container">
-            <div class="admin-layout">
-                
-                <!-- CHAP TARKIB: POS plitkalari -->
-                <section class="pos-grid-container">
-                    <div class="pos-header">
-                        <h3>Mahsulotlar <span class="highlight-text">Taxtasi</span></h3>
-                        <div class="search-bar pos-search">
-                            <input type="text" id="pos-search-input" placeholder="Tezkor qidirish...">
+        <!-- DEPARTMENT 1: SOTUV BO'LIMI (Sales & POS Terminal) -->
+        <div class="dept-section active-section" id="sotuv-section">
+            <div class="container">
+                <div class="admin-layout">
+                    <!-- CHAP TARKIB: POS plitkalari -->
+                    <section class="pos-grid-container">
+                        <div class="pos-header">
+                            <h3>Mahsulotlar <span class="highlight-text">Taxtasi</span></h3>
+                            <div class="search-bar pos-search">
+                                <input type="text" id="pos-search-input" placeholder="Tezkor qidirish...">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            </div>
+                        </div>
+
+                        <!-- Supplier Filter Bar -->
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">TA'MINOTCHI:</div>
+                        <div class="filter-controls" style="margin-bottom: 0.8rem; padding: 0.3rem;">
+                            <button class="filter-btn active" data-pos-supplier="all">Barchasi</button>
+                            <button class="filter-btn" data-pos-supplier="Alisher Aka">Alisher Aka</button>
+                            <button class="filter-btn" data-pos-supplier="Nodir aka">Nodir aka</button>
+                            <button class="filter-btn" data-pos-supplier="Eco Sports">Eco Sports</button>
+                            <button class="filter-btn" data-pos-supplier="Xitoy">Xitoy</button>
+                        </div>
+
+                        <!-- Category Filters tabs inside POS -->
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">KIYIM TURI:</div>
+                        <div class="filter-controls" style="margin-bottom: 1.5rem; padding: 0.3rem;">
+                            <button class="filter-btn active" data-pos-filter="all">Barchasi</button>
+                            <button class="filter-btn" data-pos-filter="tshirt">Futbolkalar</button>
+                            <button class="filter-btn" data-pos-filter="shorts">Shortilar</button>
+                            <button class="filter-btn" data-pos-filter="tracksuit">Sportivkalar</button>
+                            <button class="filter-btn" data-pos-filter="joggers">Trikolar</button>
+                        </div>
+
+                        <!-- Product Tiles Grid -->
+                        <div class="pos-tiles" id="pos-tiles-grid">
+                            <!-- Dynamic Tiles rendered by app.js -->
+                        </div>
+                    </section>
+
+                    <!-- O'NG TARKIB: Virtual POS Chek -->
+                    <section class="register-container">
+                        <div>
+                            <h3 style="margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                                <span>Kassa Cheki</span>
+                                <span class="pos-receipt-badge" id="pos-receipt-id">#CHK-1002</span>
+                            </h3>
+
+                            <!-- Receipt items header -->
+                            <div style="display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr 0.2fr; font-size: 0.75rem; color: var(--text-secondary); font-weight: 700; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
+                                <span>NOMI</span>
+                                <span>SONI & O'LCHAM</span>
+                                <span style="text-align: right;">SOTILISH NARXI</span>
+                                <span></span>
+                            </div>
+
+                            <!-- Receipt Tape List -->
+                            <div class="receipt-tape" id="pos-receipt-list">
+                                <!-- Dynamic items rendered by app.js -->
+                            </div>
+                        </div>
+
+                        <!-- Checkout summary calculations -->
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.2rem; margin-top: auto;">
+                            <div class="checkout-form" style="gap: 0.8rem;">
+                                <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
+                                    <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Mijoz Kanali:</label>
+                                    <select id="pos-channel" style="width: 150px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 8px;">
+                                        <option value="direct">Do'kondan Kirgan</option>
+                                        <option value="telegram">Telegram Mini App</option>
+                                        <option value="phone">Telefon Orqali</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
+                                    <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Umumiy Chegirma (UZS):</label>
+                                    <input type="number" id="pos-discount" placeholder="0" style="width: 120px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 8px; text-align: right;" min="0" value="0">
+                                </div>
+                            </div>
+                            
+                            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.8rem 0;">
+                            
+                            <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.2rem;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary)">
+                                    <span>Subtotal:</span>
+                                    <span id="pos-subtotal">0 UZS</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary)">
+                                    <span>Chegirma:</span>
+                                    <span id="pos-discount-value">-0 UZS</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 800;">
+                                    <span>Jami To'lov:</span>
+                                    <strong class="highlight-text" id="pos-final-total" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary btn-block btn-glow" id="pos-checkout-btn" disabled>
+                                <i class="fa-solid fa-cash-register" style="margin-right: 5px;"></i> SOTISHNI YAKUNLASH
+                            </button>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- CRM SALES ANALYTICS & HISTORY SECTION -->
+                <section class="analytics-section">
+                    <h2 style="margin-bottom: 2rem; font-weight: 800;">CRM Savdo <span class="highlight-text">Tahlillari</span></h2>
+
+                    <!-- Analytics Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Jami Tushum</h4>
+                                <strong id="crm-total-revenue">0 UZS</strong>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-receipt"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Sotuvlar Soni</h4>
+                                <strong id="crm-total-sales">0 ta</strong>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon"><i class="fa-solid fa-calculator"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>O'rtacha Chek</h4>
+                                <strong id="crm-avg-invoice">0 UZS</strong>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-shirt"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Sotilgan Kiyimlar</h4>
+                                <strong id="crm-total-items">0 dona</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transactions log database table -->
+                    <div class="history-card-container">
+                        <div class="history-header">
+                            <h3>Savdolar <span class="highlight-text">Tarixi Loglari</span></h3>
+                            <button class="btn btn-secondary" id="crm-clear-logs" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
+                                <i class="fa-solid fa-trash-arrow-up" style="margin-right: 5px;"></i> Tarixni Tozalash
+                            </button>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <table class="crm-table">
+                                <thead>
+                                    <tr>
+                                        <th>Sotuv ID</th>
+                                        <th>Sana / Vaqt</th>
+                                        <th>Sotuv Kanali</th>
+                                        <th>Kiyimlar</th>
+                                        <th>Chegirma</th>
+                                        <th>Jami To'lov</th>
+                                        <th>Harakatlar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="crm-history-table-body">
+                                    <!-- Dynamic history rows rendered by app.js -->
+                                </tbody>
+                            </table>
+                            <div class="empty-history-box" id="crm-empty-state">
+                                <i class="fa-solid fa-chart-line"></i>
+                                <p>Hozircha sotuvlar tarixi bo'sh. Kassada savdo amalga oshiring.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- DEPARTMENT 2: OMBOR BO'LIMI (Warehouse Inventory Management) -->
+        <div class="dept-section" id="ombor-section" style="display: none;">
+            <div class="container">
+                <section class="pos-grid-container" style="margin-top: 115px; margin-bottom: 50px;">
+                    <div class="history-header">
+                        <div>
+                            <h2 style="font-weight: 800;">Ombor Zaxira <span class="highlight-text">Tizimi</span></h2>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.2rem;">Kiyimlar zaxirasi miqdori, tan narxlari va sotilish qiymatlari boshqaruvi.</p>
+                        </div>
+                        <div class="search-bar pos-search" style="max-width: 300px;">
+                            <input type="text" id="ombor-search-input" placeholder="Kiyim izlash...">
                             <i class="fa-solid fa-magnifying-glass search-icon"></i>
                         </div>
                     </div>
 
-                    <!-- Supplier Filter Bar -->
-                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">TA'MINOTCHI:</div>
-                    <div class="filter-controls" style="margin-bottom: 0.8rem; padding: 0.3rem;">
-                        <button class="filter-btn active" data-pos-supplier="all">Barchasi</button>
-                        <button class="filter-btn" data-pos-supplier="Alisher Aka">Alisher Aka</button>
-                        <button class="filter-btn" data-pos-supplier="Nodir aka">Nodir aka</button>
-                        <button class="filter-btn" data-pos-supplier="Eco Sports">Eco Sports</button>
-                        <button class="filter-btn" data-pos-supplier="Xitoy">Xitoy</button>
-                    </div>
-
-                    <!-- Category Filters tabs inside POS -->
-                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">KIYIM TURI:</div>
-                    <div class="filter-controls" style="margin-bottom: 1.5rem; padding: 0.3rem;">
-                        <button class="filter-btn active" data-pos-filter="all">Barchasi</button>
-                        <button class="filter-btn" data-pos-filter="tshirt">Futbolkalar</button>
-                        <button class="filter-btn" data-pos-filter="shorts">Shortilar</button>
-                        <button class="filter-btn" data-pos-filter="tracksuit">Sportivkalar</button>
-                        <button class="filter-btn" data-pos-filter="joggers">Trikolar</button>
-                    </div>
-
-                    <!-- Product Tiles Grid -->
-                    <div class="pos-tiles" id="pos-tiles-grid">
-                        <!-- Dynamic Tiles rendered by app.js -->
-                    </div>
-                </section>
-
-                <!-- O'NG TARKIB: Virtual POS Chek -->
-                <section class="register-container">
-                    <div>
-                        <h3 style="margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
-                            <span>Kassa Cheki</span>
-                            <span class="pos-receipt-badge" id="pos-receipt-id">#CHK-1002</span>
-                        </h3>
-
-                        <!-- Receipt items header -->
-                        <div style="display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr 0.2fr; font-size: 0.75rem; color: var(--text-secondary); font-weight: 700; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3rem;">
-                            <span>NOMI</span>
-                            <span>SONI & O'LCHAM</span>
-                            <span style="text-align: right;">SOTILISH NARXI</span>
-                            <span></span>
-                        </div>
-
-                        <!-- Receipt Tape List -->
-                        <div class="receipt-tape" id="pos-receipt-list">
-                            <!-- Dynamic items rendered by app.js -->
-                        </div>
-                    </div>
-
-                    <!-- Checkout summary calculations -->
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.2rem; margin-top: auto;">
-                        <div class="checkout-form" style="gap: 0.8rem;">
-                            <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
-                                <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Mijoz Kanali:</label>
-                                <select id="pos-channel" style="width: 150px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 8px;">
-                                    <option value="direct">Do'kondan Kirgan</option>
-                                    <option value="telegram">Telegram Mini App</option>
-                                    <option value="phone">Telefon Orqali</option>
-                                </select>
-                            </div>
-                            <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between;">
-                                <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Umumiy Chegirma (UZS):</label>
-                                <input type="number" id="pos-discount" placeholder="0" style="width: 120px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 8px; text-align: right;" min="0" value="0">
+                    <!-- Double filters inside Warehouse -->
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                        <div style="flex-grow: 1; min-width: 250px;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.3rem;">TA'MINOTCHI:</div>
+                            <div class="filter-controls" style="padding: 0.3rem;">
+                                <button class="filter-btn active" data-ombor-supplier="all">Barchasi</button>
+                                <button class="filter-btn" data-ombor-supplier="Alisher Aka">Alisher Aka</button>
+                                <button class="filter-btn" data-ombor-supplier="Nodir aka">Nodir aka</button>
+                                <button class="filter-btn" data-ombor-supplier="Eco Sports">Eco Sports</button>
+                                <button class="filter-btn" data-ombor-supplier="Xitoy">Xitoy</button>
                             </div>
                         </div>
-                        
-                        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.8rem 0;">
-                        
-                        <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.2rem;">
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary)">
-                                <span>Subtotal:</span>
-                                <span id="pos-subtotal">0 UZS</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary)">
-                                <span>Chegirma:</span>
-                                <span id="pos-discount-value">-0 UZS</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 800;">
-                                <span>Jami To'lov:</span>
-                                <strong class="highlight-text" id="pos-final-total" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
-                            </div>
-                        </div>
-
-                        <button class="btn btn-primary btn-block btn-glow" id="pos-checkout-btn" disabled>
-                            <i class="fa-solid fa-cash-register" style="margin-right: 5px;"></i> SOTISHNI YAKUNLASH
-                        </button>
-                    </div>
-                </section>
-            </div>
-
-            <!-- CRM SALES ANALYTICS & HISTORY SECTION -->
-            <section class="analytics-section">
-                <h2 style="margin-bottom: 2rem; font-weight: 800;">CRM Savdo <span class="highlight-text">Tahlillari</span></h2>
-
-                <!-- Analytics Cards -->
-                <div class="stats-grid">
-                    <div class="stat-badge-card">
-                        <div class="stat-badge-icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
-                        <div class="stat-badge-info">
-                            <h4>Jami Tushum</h4>
-                            <strong id="crm-total-revenue">0 UZS</strong>
-                        </div>
-                    </div>
-                    <div class="stat-badge-card">
-                        <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-receipt"></i></div>
-                        <div class="stat-badge-info">
-                            <h4>Sotuvlar Soni</h4>
-                            <strong id="crm-total-sales">0 ta</strong>
-                        </div>
-                    </div>
-                    <div class="stat-badge-card">
-                        <div class="stat-badge-icon"><i class="fa-solid fa-calculator"></i></div>
-                        <div class="stat-badge-info">
-                            <h4>O'rtacha Chek</h4>
-                            <strong id="crm-avg-invoice">0 UZS</strong>
-                        </div>
-                    </div>
-                    <div class="stat-badge-card">
-                        <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-shirt"></i></div>
-                        <div class="stat-badge-info">
-                            <h4>Sotilgan Kiyimlar</h4>
-                            <strong id="crm-total-items">0 dona</strong>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Transactions log database table -->
-                <div class="history-card-container">
-                    <div class="history-header">
-                        <h3>Savdolar <span class="highlight-text">Tarixi Loglari</span></h3>
-                        <button class="btn btn-secondary" id="crm-clear-logs" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
-                            <i class="fa-solid fa-trash-arrow-up" style="margin-right: 5px;"></i> Tarixni Tozalash
-                        </button>
                     </div>
 
+                    <!-- Inventory Table -->
                     <div style="overflow-x: auto;">
                         <table class="crm-table">
                             <thead>
                                 <tr>
-                                    <th>Sotuv ID</th>
-                                    <th>Sana / Vaqt</th>
-                                    <th>Sotuv Kanali</th>
-                                    <th>Kiyimlar</th>
-                                    <th>Chegirma</th>
-                                    <th>Jami To'lov</th>
+                                    <th>Kiyim Kodi</th>
+                                    <th>Ta'minotchi</th>
+                                    <th>Kiyim Nomi</th>
+                                    <th>Kiyim Turi</th>
+                                    <th>Standard Sotilish Narxi</th>
+                                    <th>Ombor Zaxirasi</th>
+                                    <th>Holati</th>
                                     <th>Harakatlar</th>
                                 </tr>
                             </thead>
-                            <tbody id="crm-history-table-body">
-                                <!-- Dynamic history rows rendered by app.js -->
+                            <tbody id="ombor-inventory-table-body">
+                                <!-- Rendered dynamically by app.js -->
                             </tbody>
                         </table>
-                        <div class="empty-history-box" id="crm-empty-state">
-                            <i class="fa-solid fa-chart-line"></i>
-                            <p>Hozircha sotuvlar tarixi bo'sh. Kassada savdo amalga oshiring.</p>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- DEPARTMENT 3: BUXGALTERIYA (Accounting & Finance Ledger) -->
+        <div class="dept-section" id="buxgalteriya-section" style="display: none;">
+            <div class="container">
+                <section class="pos-grid-container" style="margin-top: 115px; margin-bottom: 50px;">
+                    
+                    <div class="history-header">
+                        <div>
+                            <h2 style="font-weight: 800;">Moliyaviy <span class="highlight-text">Buxgalteriya</span></h2>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.2rem;">Kassa tushumlari, operatsion xarajatlar va netto foyda tahlili.</p>
+                        </div>
+                        <button class="btn btn-primary btn-glow" id="add-expense-trigger" style="padding: 0.6rem 1.4rem; font-size: 0.85rem; border-radius: 8px;">
+                            <i class="fa-solid fa-circle-plus"></i> Xarajat Qo'shish
+                        </button>
+                    </div>
+
+                    <!-- Finance Ledger Badges -->
+                    <div class="stats-grid" style="margin-bottom: 2.5rem;">
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.15); color: var(--primary);"><i class="fa-solid fa-chart-line"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Jami Savdo (Aylanma)</h4>
+                                <strong id="bux-revenue">0 UZS</strong>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-dolly"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Taxminiy Tan Narxi (COGS)</h4>
+                                <strong id="bux-cogs">0 UZS</strong>
+                                <small style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Standart: 60%</small>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.15); color: #ef4444;"><i class="fa-solid fa-wallet"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Jami Xarajatlar</h4>
+                                <strong id="bux-expenses">0 UZS</strong>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon cyan-theme" style="background: rgba(16,185,129,0.12); border-color: var(--primary); color: var(--primary); box-shadow: 0 0 15px var(--primary-glow);"><i class="fa-solid fa-sack-dollar"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Netto Foyda (Toza)</h4>
+                                <strong id="bux-profit" class="highlight-text" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
+
+                    <!-- Expense Ledger Logs Table -->
+                    <div class="history-card-container">
+                        <div class="history-header">
+                            <h3>Xarajatlar <span class="highlight-text">Tarixi Daftar-Logi</span></h3>
+                            <button class="btn btn-secondary" id="bux-clear-expenses" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
+                                <i class="fa-solid fa-trash-can" style="margin-right: 5px;"></i> Xarajatlarni Tozalash
+                            </button>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <table class="crm-table">
+                                <thead>
+                                    <tr>
+                                        <th>Xarajat ID</th>
+                                        <th>Sana / Vaqt</th>
+                                        <th>Xarajat Maqsadi / Izoh</th>
+                                        <th>Kategoriya</th>
+                                        <th>Summa</th>
+                                        <th>Harakatlar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bux-expense-table-body">
+                                    <!-- Rendered dynamically by app.js -->
+                                </tbody>
+                            </table>
+                            <div class="empty-history-box" id="bux-empty-state">
+                                <i class="fa-solid fa-calculator"></i>
+                                <p>Hozircha xarajatlar ro'yxati bo'sh. Yuqoridagi tugma orqali operatsion xarajatlarni qo'shing.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- DEPARTMENT 4: SOZLAMALAR BO'LIMI (System Configurations) -->
+        <div class="dept-section" id="sozlamalar-section" style="display: none;">
+            <div class="container">
+                <section class="pos-grid-container" style="margin-top: 115px; margin-bottom: 50px; max-width: 650px; margin-left: auto; margin-right: auto;">
+                    <h2 style="font-weight: 800; margin-bottom: 0.5rem;">Kassa & Tizim <span class="highlight-text">Sozlamalari</span></h2>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 2rem;">Bot API ulanmalari va kassa xavfsizlik sozlamalari.</p>
+
+                    <form id="settings-form" class="checkout-form" style="gap: 1.5rem;">
+                        <div class="form-group">
+                            <label for="settings-pin">Sotuvni tasdiqlash uchun Maxsus PIN-kod (4 xonali)</label>
+                            <input type="password" id="settings-pin" maxlength="4" value="7777" style="font-weight: 800; font-size: 1.2rem; width: 150px; text-align: center; letter-spacing: 5px;" required>
+                            <small style="color: var(--text-muted);">Sotishni tasdiqlash jarayonida so'raladigan maxsus auditorlik kassa kodi.</small>
+                        </div>
+
+                        <hr style="border: 0; border-top: 1px solid var(--border-color);">
+
+                        <div class="form-group">
+                            <label for="settings-bot-token">Telegram Bot Token (HTTP API Key)</label>
+                            <input type="text" id="settings-bot-token" value="8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE" required>
+                            <small style="color: var(--text-muted);">Mini App buyurtma cheklarini shaxsiy chatga yuborishda foydalanadigan Telegram bot kaliti.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="settings-chat-id">Hisobot Yuboriladigan Telegram Chat ID</label>
+                            <input type="text" id="settings-chat-id" placeholder="Telegram Chat ID raqamingiz (masalan: 648833917)">
+                            <small style="color: var(--text-muted);">Cheklar yuboriladigan Telegram hisob egasining ID raqami. Agar bo'sh qoldirilsa, tizim Mini App-ni ochgan xodimning shaxsiy chatiga jo'natadi.</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem;">
+                            <i class="fa-solid fa-floppy-disk"></i> SOZLAMALARNI SAQLASH
+                        </button>
+                    </form>
+                </section>
+            </div>
         </div>
 
         <!-- POS CALCULATOR POPUP MODAL (Custom prices & sizing select) -->
@@ -426,6 +625,45 @@
                         <i class="fa-solid fa-circle-check"></i> Yopish
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- BUXGALTERIYA EXPENSE REGISTRATION POPUP MODAL [NEW] -->
+        <div class="modal" id="bux-expense-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 400px; padding: 2rem;">
+                <button class="close-modal-btn" id="close-expense-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.15); color: #ef4444; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-receipt"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;" class="text-center">Xarajat Qo'shish</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;" class="text-center">Do'kon arendasi, oyliklar, transport yoki boshqa operatsion xarajatlarni ro'yxatga olish.</p>
+                
+                <form id="bux-expense-form" class="checkout-form" style="gap: 1rem;">
+                    <div class="form-group">
+                        <label for="expense-amount">Xarajat Summasi (UZS)</label>
+                        <input type="number" id="expense-amount" placeholder="Masalan: 150000" required style="font-weight: 800; font-size: 1.15rem; color: #ef4444;">
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-desc">Xarajat maqsadi / izoh</label>
+                        <input type="text" id="expense-desc" placeholder="Masalan: Yunusobod do'kon arendasi" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-cat">Kategoriya</label>
+                        <select id="expense-cat" required>
+                            <option value="rent">Arenda to'lovi</option>
+                            <option value="salary">Xodimlar oyligi</option>
+                            <option value="transport">Yo'lkira / Dostavka</option>
+                            <option value="tax">Soliqlar / Kommunal</option>
+                            <option value="other">Boshqa operatsion xarajatlar</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                        <i class="fa-solid fa-file-invoice-dollar"></i> XARAJATNI RO'YXATGA OLISH
+                    </button>
+                </form>
             </div>
         </div>
 

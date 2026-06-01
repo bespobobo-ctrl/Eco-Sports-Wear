@@ -295,6 +295,64 @@ button, input, select, textarea {
     height: 85px;
 }
 
+.nav-menu {
+    flex-grow: 1;
+    margin: 0 2rem;
+    display: flex;
+    justify-content: center;
+}
+
+.dept-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-dark-base);
+    border: 1px solid var(--border-color);
+    padding: 0.3rem;
+    border-radius: 16px;
+}
+
+.dept-tab-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0.6rem 1.2rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: var(--transition-bounce);
+    border: 1px solid transparent;
+}
+
+.dept-tab-btn i {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    transition: var(--transition-smooth);
+}
+
+.dept-tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.dept-tab-btn:hover i {
+    color: var(--text-secondary);
+}
+
+.dept-tab-btn.active {
+    color: var(--primary);
+    background: var(--primary-glow);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
+}
+
+.dept-tab-btn.active i {
+    color: var(--primary);
+}
+
 .logo {
     font-size: 1.5rem;
     font-weight: 800;
