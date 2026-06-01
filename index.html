@@ -102,7 +102,18 @@
                         </div>
                     </div>
 
+                    <!-- Supplier Filter Bar -->
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">TA'MINOTCHI:</div>
+                    <div class="filter-controls" style="margin-bottom: 0.8rem; padding: 0.3rem;">
+                        <button class="filter-btn active" data-pos-supplier="all">Barchasi</button>
+                        <button class="filter-btn" data-pos-supplier="Alisher Aka">Alisher Aka</button>
+                        <button class="filter-btn" data-pos-supplier="Nodir aka">Nodir aka</button>
+                        <button class="filter-btn" data-pos-supplier="Eco Sports">Eco Sports</button>
+                        <button class="filter-btn" data-pos-supplier="Xitoy">Xitoy</button>
+                    </div>
+
                     <!-- Category Filters tabs inside POS -->
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">KIYIM TURI:</div>
                     <div class="filter-controls" style="margin-bottom: 1.5rem; padding: 0.3rem;">
                         <button class="filter-btn active" data-pos-filter="all">Barchasi</button>
                         <button class="filter-btn" data-pos-filter="tshirt">Futbolkalar</button>
@@ -285,6 +296,34 @@
 
                     <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1.5rem;">
                         <i class="fa-solid fa-cart-arrow-down" style="margin-right: 5px;"></i> Chekka Qo'shish
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- POS PIN CODE VERIFICATION MODAL -->
+        <div class="modal" id="pos-pin-modal">
+            <div class="modal-content pos-calculator-modal text-center" style="max-width: 360px; padding: 2rem;">
+                <button class="close-modal-btn" id="close-pin-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(6,182,212,0.08); border-color: rgba(6,182,212,0.15); color: var(--accent); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;">Sotuvni Tasdiqlash</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;">Ushbu sotuvni amalga oshirish uchun maxsus 4 xonali kassa kodini kiriting.</p>
+                
+                <form id="pos-pin-form">
+                    <div class="calc-form-group" style="align-items: center; justify-content: center;">
+                        <input type="password" id="pos-pin-input" maxlength="4" placeholder="••••" style="width: 160px; padding: 0.8rem; border-radius: 12px; background: var(--bg-dark-input); border: 2px solid var(--border-color); color: var(--primary); font-weight: 800; font-size: 1.8rem; letter-spacing: 12px; text-align: center;" required autocomplete="off">
+                    </div>
+                    
+                    <div class="login-error-msg" id="pin-error-msg" style="margin-bottom: 1.2rem; text-align: center; justify-content: center; width: 100%;">
+                        <i class="fa-solid fa-circle-xmark"></i> Maxsus kod xato!
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 0.5rem;">
+                        <i class="fa-solid fa-circle-check"></i> SOTUVNI AMALGA OSHIRISH
                     </button>
                 </form>
             </div>

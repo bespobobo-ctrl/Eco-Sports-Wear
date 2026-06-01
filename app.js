@@ -16,72 +16,28 @@ if (tg) {
     tg.setBackgroundColor('#090d16');
 }
 
-// 2. PRODUCT DATASET
+// 2. PRODUCT DATASET (4 Suppliers x 4 Categories)
 const PRODUCTS = [
-    {
-        id: 1,
-        name: "Eco-Luxe Breathable T-Shirt",
-        price: 260000,
-        category: "tshirt",
-        image: "assets/tshirt.png",
-        sizes: ["S", "M", "L", "XL", "XXL"]
-    },
-    {
-        id: 2,
-        name: "Vortex Dry-Fit Tee",
-        price: 240000,
-        category: "tshirt",
-        image: "assets/tshirt.png",
-        sizes: ["M", "L", "XL", "XXL"]
-    },
-    {
-        id: 3,
-        name: "Pro-Flow Sustainable Shorts",
-        price: 220000,
-        category: "shorts",
-        image: "assets/shorts.png",
-        sizes: ["M", "L", "XL", "XXL"]
-    },
-    {
-        id: 4,
-        name: "Apex Core Training Shorts",
-        price: 190000,
-        category: "shorts",
-        image: "assets/shorts.png",
-        sizes: ["S", "M", "L", "XL"]
-    },
-    {
-        id: 5,
-        name: "Hybrid Eco-Performance Tracksuit",
-        price: 720000,
-        category: "tracksuit",
-        image: "assets/tracksuit.png",
-        sizes: ["S", "M", "L", "XL"]
-    },
-    {
-        id: 6,
-        name: "Thermal Storm Active Set",
-        price: 680000,
-        category: "tracksuit",
-        image: "assets/tracksuit.png",
-        sizes: ["M", "L", "XL", "XXL"]
-    },
-    {
-        id: 7,
-        name: "Active-Flex Premium Joggers",
-        price: 340000,
-        category: "joggers",
-        image: "assets/joggers.png",
-        sizes: ["M", "L", "XL", "XXL", "3XL"]
-    },
-    {
-        id: 8,
-        name: "Chill-Out Comfort Sweatpants",
-        price: 310000,
-        category: "joggers",
-        image: "assets/joggers.png",
-        sizes: ["M", "L", "XL", "XXL"]
-    }
+    // Alisher Aka
+    { id: 101, supplier: "Alisher Aka", name: "Alisher Aka - Futbolka", price: 260000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
+    { id: 102, supplier: "Alisher Aka", name: "Alisher Aka - Shortik", price: 220000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
+    { id: 103, supplier: "Alisher Aka", name: "Alisher Aka - Sportivka", price: 720000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
+    { id: 104, supplier: "Alisher Aka", name: "Alisher Aka - Triko", price: 340000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] },
+    // Nodir aka
+    { id: 201, supplier: "Nodir aka", name: "Nodir aka - Futbolka", price: 240000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
+    { id: 202, supplier: "Nodir aka", name: "Nodir aka - Shortik", price: 200000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
+    { id: 203, supplier: "Nodir aka", name: "Nodir aka - Sportivka", price: 680000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
+    { id: 204, supplier: "Nodir aka", name: "Nodir aka - Triko", price: 320000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] },
+    // Eco Sports
+    { id: 301, supplier: "Eco Sports", name: "Eco Sports - Futbolka", price: 280000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
+    { id: 302, supplier: "Eco Sports", name: "Eco Sports - Shortik", price: 230000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
+    { id: 303, supplier: "Eco Sports", name: "Eco Sports - Sportivka", price: 750000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
+    { id: 304, supplier: "Eco Sports", name: "Eco Sports - Triko", price: 360000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] },
+    // Xitoy
+    { id: 401, supplier: "Xitoy", name: "Xitoy - Futbolka", price: 180000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
+    { id: 402, supplier: "Xitoy", name: "Xitoy - Shortik", price: 150000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
+    { id: 403, supplier: "Xitoy", name: "Xitoy - Sportivka", price: 550000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
+    { id: 404, supplier: "Xitoy", name: "Xitoy - Triko", price: 280000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] }
 ];
 
 // 3. APPLICATION STATE
@@ -89,6 +45,7 @@ let state = {
     cart: [],
     selectedProduct: null,
     selectedSize: null,
+    activeSupplier: "all",
     activeCategory: "all",
     searchQuery: "",
     salesHistory: []
@@ -133,6 +90,13 @@ const calcQtyMinus = document.getElementById("calc-qty-minus");
 const calcQtyPlus = document.getElementById("calc-qty-plus");
 const calcPriceInput = document.getElementById("calc-unit-price");
 const calcStdPrice = document.getElementById("calc-std-price");
+
+// POS PIN Code Modal elements
+const pinModal = document.getElementById("pos-pin-modal");
+const closePinModal = document.getElementById("close-pin-modal");
+const pinForm = document.getElementById("pos-pin-form");
+const pinInput = document.getElementById("pos-pin-input");
+const pinErrorMsg = document.getElementById("pin-error-msg");
 
 // CRM widgets elements
 const crmRevenue = document.getElementById("crm-total-revenue");
@@ -197,9 +161,10 @@ function handleLogout() {
 // 7. POS TILES RENDERER
 function renderTiles() {
     let filtered = PRODUCTS.filter(p => {
+        const matchesSupplier = state.activeSupplier === "all" || p.supplier === state.activeSupplier;
         const matchesCategory = state.activeCategory === "all" || p.category === state.activeCategory;
         const matchesSearch = p.name.toLowerCase().includes(state.searchQuery.toLowerCase());
-        return matchesCategory && matchesSearch;
+        return matchesSupplier && matchesCategory && matchesSearch;
     });
 
     tilesGrid.innerHTML = "";
@@ -434,6 +399,40 @@ async function completeSale() {
     receiptIdLabel.textContent = "#" + generateReceiptId();
 }
 
+// 10.5 POS PIN CODE MODAL CONTROLLER
+function openPinModal() {
+    if (state.cart.length === 0) return;
+    
+    pinInput.value = "";
+    pinErrorMsg.style.display = "none";
+    pinModal.classList.add("open");
+    
+    setTimeout(() => {
+        pinInput.focus();
+    }, 100);
+}
+
+function closePinModalOverlay() {
+    pinModal.classList.remove("open");
+}
+
+function handlePinSubmit(e) {
+    e.preventDefault();
+    const pinVal = pinInput.value;
+
+    if (pinVal === "7777") {
+        pinErrorMsg.style.display = "none";
+        closePinModalOverlay();
+        completeSale();
+    } else {
+        pinErrorMsg.style.display = "flex";
+        pinInput.value = "";
+        if (tg && tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('error');
+        }
+    }
+}
+
 // 11. CRM ANALYTICS & LOG TABLES
 function updateAnalytics() {
     const history = state.salesHistory;
@@ -575,14 +574,31 @@ function setupEventListeners() {
     discountInput.addEventListener("input", updateReceiptUI);
 
     // Complete Sale manually
-    checkoutBtn.addEventListener("click", completeSale);
+    checkoutBtn.addEventListener("click", openPinModal);
 
     // Hook Telegram native button clicks
     if (tg) {
         tg.MainButton.onClick(() => {
-            completeSale();
+            openPinModal();
         });
     }
+
+    // PIN modal closing & submissions
+    closePinModal.addEventListener("click", closePinModalOverlay);
+    pinModal.addEventListener("click", (e) => {
+        if (e.target === pinModal) closePinModalOverlay();
+    });
+    pinForm.addEventListener("submit", handlePinSubmit);
+
+    // POS supplier filters
+    document.querySelectorAll("[data-pos-supplier]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll("[data-pos-supplier]").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            state.activeSupplier = btn.dataset.posSupplier;
+            renderTiles();
+        });
+    });
 
     // Clear CRM logs database
     clearLogsBtn.addEventListener("click", () => {
