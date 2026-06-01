@@ -107,6 +107,21 @@ const crmTableBody = document.getElementById("crm-history-table-body");
 const crmEmptyState = document.getElementById("crm-empty-state");
 const clearLogsBtn = document.getElementById("crm-clear-logs");
 
+// POS Premium Success Receipt Modal elements
+const successReceiptModal = document.getElementById("pos-success-receipt-modal");
+const closeReceiptModal = document.getElementById("close-receipt-modal");
+const receiptModalId = document.getElementById("receipt-modal-id");
+const receiptModalDate = document.getElementById("receipt-modal-date");
+const receiptModalTime = document.getElementById("receipt-modal-time");
+const receiptModalCashier = document.getElementById("receipt-modal-cashier");
+const receiptModalChannel = document.getElementById("receipt-modal-channel");
+const receiptModalItemsContainer = document.getElementById("receipt-modal-items");
+const receiptModalSubtotal = document.getElementById("receipt-modal-subtotal");
+const receiptModalDiscount = document.getElementById("receipt-modal-discount");
+const receiptModalTotal = document.getElementById("receipt-modal-total");
+const receiptModalPrintBtn = document.getElementById("receipt-modal-print-btn");
+const receiptModalCloseBtn = document.getElementById("receipt-modal-close-btn");
+
 // 5. UTILITIES
 function formatPrice(number) {
     return number.toLocaleString('uz-UZ') + " UZS";
@@ -323,16 +338,24 @@ async function completeSale() {
     const dateStr = now.toLocaleDateString('uz-UZ') + " " + now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
     const orderId = generateReceiptId();
 
-    const itemsSummary = state.cart.map(item => `${item.product.name} (${item.size}) x${item.qty}`);
+    // Map raw structured items array to store complete pricing & sizing
+    const itemsData = state.cart.map(item => ({
+        name: item.product.name,
+        size: item.size,
+        qty: item.qty,
+        soldPrice: item.soldPrice
+    }));
 
     const newTx = {
         id: orderId,
         timestamp: dateStr,
         channel: channelSelect.value,
-        items: itemsSummary,
+        items: itemsData,
         discount: discount,
+        subtotal: subtotal,
         totalPaid: finalTotal,
-        itemCount: itemCount
+        itemCount: itemCount,
+        cashier: activeCashierLabel.textContent
     };
 
     // Save transaction to local state and DB
@@ -385,8 +408,32 @@ async function completeSale() {
         tg.HapticFeedback.notificationOccurred('success');
     }
 
-    // Display confirmation
-    alert(`Savdo yakunlandi!\nChek ID: #${orderId}\nJami to'lov: ${formatPrice(finalTotal)}`);
+    // Populate and open Premium Virtual Success Receipt Modal
+    receiptModalId.textContent = "#" + orderId;
+    receiptModalDate.textContent = now.toLocaleDateString('uz-UZ', { day: '2-digit', month: 'long', year: 'numeric' });
+    receiptModalTime.textContent = now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    receiptModalCashier.textContent = activeCashierLabel.textContent;
+    receiptModalChannel.textContent = channelSelect.value === 'telegram' ? 'Mini App' : channelSelect.value === 'phone' ? 'Telefon' : 'Do\'kon (POS)';
+    receiptModalSubtotal.textContent = formatPrice(subtotal);
+    receiptModalDiscount.textContent = "-" + formatPrice(discount);
+    receiptModalTotal.textContent = formatPrice(finalTotal);
+
+    receiptModalItemsContainer.innerHTML = "";
+    state.cart.forEach(item => {
+        const row = document.createElement("div");
+        row.style.display = "grid";
+        row.style.gridTemplateColumns = "1.5fr 0.5fr 1fr";
+        row.style.fontSize = "0.8rem";
+        row.style.padding = "0.2rem 0";
+        row.innerHTML = `
+            <span>${item.product.name} (${item.size})</span>
+            <span style="text-align: center;">x${item.qty}</span>
+            <span style="text-align: right; font-weight: bold;">${formatPrice(item.soldPrice * item.qty)}</span>
+        `;
+        receiptModalItemsContainer.appendChild(row);
+    });
+
+    successReceiptModal.classList.add("open");
 
     // Reset cashier forms
     state.cart = [];
@@ -397,6 +444,44 @@ async function completeSale() {
 
     // Regenerate unique receipt ID
     receiptIdLabel.textContent = "#" + generateReceiptId();
+}
+
+// 10.7 POS HISTORICAL RECEIPT VIEWER
+function openHistoricalReceipt(txId) {
+    const tx = state.salesHistory.find(t => t.id === txId);
+    if (!tx) return;
+
+    receiptModalId.textContent = "#" + tx.id;
+    receiptModalDate.textContent = tx.timestamp.split(" ")[0] || "";
+    receiptModalTime.textContent = tx.timestamp.split(" ")[1] || "";
+    receiptModalCashier.textContent = tx.cashier || "Admin";
+    receiptModalChannel.textContent = tx.channel === 'telegram' ? 'Mini App' : tx.channel === 'phone' ? 'Telefon' : 'Do\'kon (POS)';
+    
+    const subtotal = tx.subtotal || tx.totalPaid + tx.discount;
+    receiptModalSubtotal.textContent = formatPrice(subtotal);
+    receiptModalDiscount.textContent = "-" + formatPrice(tx.discount);
+    receiptModalTotal.textContent = formatPrice(tx.totalPaid);
+
+    receiptModalItemsContainer.innerHTML = "";
+    tx.items.forEach(item => {
+        const name = typeof item === 'object' ? `${item.name} (${item.size})` : item;
+        const qtyText = typeof item === 'object' ? `x${item.qty}` : "";
+        const priceText = typeof item === 'object' ? formatPrice(item.soldPrice * item.qty) : "";
+
+        const row = document.createElement("div");
+        row.style.display = "grid";
+        row.style.gridTemplateColumns = "1.5fr 0.5fr 1fr";
+        row.style.fontSize = "0.8rem";
+        row.style.padding = "0.2rem 0";
+        row.innerHTML = `
+            <span>${name}</span>
+            <span style="text-align: center;">${qtyText}</span>
+            <span style="text-align: right; font-weight: bold;">${priceText}</span>
+        `;
+        receiptModalItemsContainer.appendChild(row);
+    });
+
+    successReceiptModal.classList.add("open");
 }
 
 // 10.5 POS PIN CODE MODAL CONTROLLER
@@ -462,22 +547,37 @@ function renderHistoryTable() {
     [...history].reverse().forEach((tx, idx) => {
         const row = document.createElement("tr");
         const actualIdx = history.length - 1 - idx;
-        const itemsSummary = tx.items.join(", ");
+        
+        // Format products display dynamically
+        const itemsSummary = tx.items.map(item => {
+            return typeof item === 'object' ? `${item.name.replace(/.* - /, '')} (${item.size}) x${item.qty}` : item;
+        }).join(", ");
 
         row.innerHTML = `
             <td><strong>#${tx.id}</strong></td>
             <td>${tx.timestamp}</td>
             <td><span class="channel-tag tag-${tx.channel}">${tx.channel === 'telegram' ? 'Mini App' : tx.channel === 'phone' ? 'Telefon' : 'Do\'kon'}</span></td>
-            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${itemsSummary}">${itemsSummary}</td>
+            <td style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${itemsSummary}">${itemsSummary}</td>
             <td>${formatPrice(tx.discount)}</td>
             <td style="font-weight: 800; color: var(--primary);">${formatPrice(tx.totalPaid)}</td>
-            <td>
-                <button class="qty-btn delete-log-btn" data-idx="${actualIdx}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width:30px; height:30px;">
+            <td style="display: flex; gap: 0.4rem; justify-content: center; align-items: center;">
+                <button class="qty-btn inspect-receipt-btn" data-id="${tx.id}" style="background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.2); color: var(--accent); width:30px; height:30px;" title="Chekni Ko'rish">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button class="qty-btn delete-log-btn" data-idx="${actualIdx}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; width:30px; height:30px;" title="O'chirish">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
             </td>
         `;
         crmTableBody.appendChild(row);
+    });
+
+    // Inspect listener to trigger virtual receipt popup
+    document.querySelectorAll(".inspect-receipt-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.id;
+            openHistoricalReceipt(id);
+        });
     });
 
     // Delete single transaction log listener
@@ -589,6 +689,19 @@ function setupEventListeners() {
         if (e.target === pinModal) closePinModalOverlay();
     });
     pinForm.addEventListener("submit", handlePinSubmit);
+
+    // POS Success Receipt Modal actions
+    const closeSuccessReceipt = () => successReceiptModal.classList.remove("open");
+    closeReceiptModal.addEventListener("click", closeSuccessReceipt);
+    receiptModalCloseBtn.addEventListener("click", closeSuccessReceipt);
+    successReceiptModal.addEventListener("click", (e) => {
+        if (e.target === successReceiptModal) closeSuccessReceipt();
+    });
+
+    // Print Receipt mock alert
+    receiptModalPrintBtn.addEventListener("click", () => {
+        alert("Chek printerga yuborilmoqda... (Mock Printer Active)");
+    });
 
     // POS supplier filters
     document.querySelectorAll("[data-pos-supplier]").forEach(btn => {

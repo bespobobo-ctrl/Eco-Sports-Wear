@@ -329,6 +329,106 @@
             </div>
         </div>
 
+        <!-- POS PREMIUM SUCCESS RECEIPT MODAL -->
+        <div class="modal" id="pos-success-receipt-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 440px; padding: 2.2rem; background: #0c111e; border-color: rgba(16, 185, 129, 0.25);">
+                <button class="close-modal-btn" id="close-receipt-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                
+                <!-- Animated Success Badge -->
+                <div class="text-center" style="margin-bottom: 1.5rem;">
+                    <div class="success-icon-badge" style="margin: 0 auto 0.8rem; font-size: 3.2rem; line-height: 1; text-shadow: 0 0 15px rgba(16,185,129,0.4); color: var(--primary);">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <h3 style="font-weight: 800; font-size: 1.4rem;">Savdo Muvaffaqiyatli!</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.8rem;">Chek tizimga va botga muvaffaqiyatli saqlandi.</p>
+                </div>
+
+                <!-- Virtual Paper Receipt Card -->
+                <div class="receipt-paper-card" style="background: #111827; border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; position: relative;">
+                    <!-- Receipt Header -->
+                    <div class="text-center" style="margin-bottom: 1.2rem;">
+                        <h4 style="font-weight: 800; font-size: 1.1rem; letter-spacing: 1px; color: var(--primary);">ECO SPORTS</h4>
+                        <p style="color: var(--text-muted); font-size: 0.75rem;">Premium Sportswear Terminal</p>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 1rem; font-size: 0.8rem; color: var(--text-secondary);">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>CHEK ID:</span>
+                            <strong id="receipt-modal-id" style="color: var(--text-primary);">#CHK-4172</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>SANA:</span>
+                            <span id="receipt-modal-date" style="color: var(--text-primary);">01-Iyun, 2026</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>VAQT:</span>
+                            <span id="receipt-modal-time" style="color: var(--text-primary);">11:27:46</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>KASSIR:</span>
+                            <span id="receipt-modal-cashier" style="color: var(--text-primary);">Admin</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>MANBA:</span>
+                            <span id="receipt-modal-channel" style="color: var(--text-primary);">Do'kon (POS)</span>
+                        </div>
+                    </div>
+
+                    <!-- Dashed border -->
+                    <div style="border-top: 1px dashed var(--border-color); margin-bottom: 1rem;"></div>
+
+                    <!-- Receipt Products List -->
+                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); display: grid; grid-template-columns: 1.5fr 0.5fr 1fr; margin-bottom: 0.5rem; text-align: left;">
+                        <span>MAHSULOT</span>
+                        <span style="text-align: center;">MIQDOR</span>
+                        <span style="text-align: right;">NARX</span>
+                    </div>
+                    
+                    <div id="receipt-modal-items" style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; max-height: 180px; overflow-y: auto; padding-right: 0.3rem;">
+                        <!-- Dynamic receipt rows -->
+                    </div>
+
+                    <!-- Dashed border -->
+                    <div style="border-top: 1px dashed var(--border-color); margin-bottom: 1rem;"></div>
+
+                    <!-- Receipt Subtotals & Totals -->
+                    <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Subtotal:</span>
+                            <span id="receipt-modal-subtotal">260,000 UZS</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Chegirma:</span>
+                            <span id="receipt-modal-discount">-0 UZS</span>
+                        </div>
+                        <div style="border-top: 1px dashed var(--border-color); margin: 0.4rem 0;"></div>
+                        <div style="display: flex; justify-content: space-between; font-size: 1.05rem; font-weight: 800; color: var(--text-primary);">
+                            <span>JAMI TO'LOV:</span>
+                            <strong style="color: var(--primary);" id="receipt-modal-total">260,000 UZS</strong>
+                        </div>
+                    </div>
+
+                    <!-- Receipt Footer -->
+                    <div class="text-center" style="margin-top: 1.5rem; font-size: 0.75rem; color: var(--text-muted);">
+                        <p>Xaridingiz uchun rahmat!</p>
+                        <p style="margin-top: 0.2rem;">*** ECO SPORTS TERMINAL ***</p>
+                    </div>
+                </div>
+
+                <!-- Action Button row -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem;">
+                    <button class="btn btn-secondary" id="receipt-modal-print-btn" style="padding: 0.8rem; font-size: 0.9rem;">
+                        <i class="fa-solid fa-print"></i> Chop etish
+                    </button>
+                    <button class="btn btn-primary btn-glow" id="receipt-modal-close-btn" style="padding: 0.8rem; font-size: 0.9rem;">
+                        <i class="fa-solid fa-circle-check"></i> Yopish
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Footer -->
         <footer class="main-footer">
             <div class="container footer-bottom">
