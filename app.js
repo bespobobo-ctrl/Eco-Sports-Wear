@@ -2029,18 +2029,26 @@ function renderSupplierStockReport() {
         addInto(grand, packs, dona, cogs, sell);
     }
 
-    PRODUCTS.forEach(p => {
-        const qtyDona = inventory[p.id] !== undefined ? inventory[p.id] : 0;
-        const packSizes = p.sizes ? p.sizes.length : 5;
-        const qtyPacks = packSizes ? qtyDona / packSizes : 0;
-        consume(p.supplier || "Boshqa", p.category || "boshqa", qtyPacks, qtyDona, qtyDona * (p.price * 0.6), qtyDona * p.price);
+    // PRODUCTS + dynamicProducts ni BIRLASHTIRIB, har mahsulotni FAQAT BIR MARTA sanash
+    // (tasdiqlangan dinamik mahsulot ikkala ro'yxatda ham bo'ladi → ikki marta sanalmasligi uchun)
+    const _seen = new Set();
+    const _allProds = [];
+    [...PRODUCTS, ...(state.dynamicProducts || [])].forEach(p => {
+        const key = String(p.id);
+        if (_seen.has(key)) return;
+        _seen.add(key);
+        _allProds.push(p);
     });
-    state.dynamicProducts.forEach(p => {
+
+    _allProds.forEach(p => {
         const qtyDona = inventory[p.id] !== undefined ? inventory[p.id] : (p.qty || 0);
         const packSizes = p.sizes ? p.sizes.length : 5;
         const qtyPacks = packSizes ? qtyDona / packSizes : 0;
+        // Tan narx: pachka tan narxi (cogs) berilgan bo'lsa ANIQ; aks holda taxminiy (price*0.6)
         const packCogs = p.cogs ? p.cogs : (p.price * 0.6 * packSizes);
-        consume(p.supplier || "Boshqa", p.category || "boshqa", qtyPacks, qtyDona, qtyPacks * packCogs, qtyDona * (p.price || 0));
+        const totalCogs = qtyPacks * packCogs;
+        const totalSell = qtyDona * (p.price || 0);
+        consume(p.supplier || "Boshqa", p.category || "boshqa", qtyPacks, qtyDona, totalCogs, totalSell);
     });
 
     // ---- 2. Supplier list for the dropdown ----
