@@ -6,6 +6,8 @@
     <title>Eco Sports - Enterprise Kassa & CRM Tizimi</title>
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,7 +15,7 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Main Style sheet -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.5">
 </head>
 <body>
 
@@ -130,27 +132,32 @@
 
                         <!-- Supplier Filter Bar -->
                         <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">TA'MINOTCHI:</div>
-                        <div class="filter-controls" style="margin-bottom: 0.8rem; padding: 0.3rem;">
-                            <button class="filter-btn active" data-pos-supplier="all"><i class="fa-solid fa-users"></i> Barchasi</button>
-                            <button class="filter-btn" data-pos-supplier="Alisher Aka"><i class="fa-solid fa-user-tie"></i> Alisher Aka</button>
-                            <button class="filter-btn" data-pos-supplier="Nodir aka"><i class="fa-solid fa-user-gear"></i> Nodir aka</button>
-                            <button class="filter-btn" data-pos-supplier="Eco Sports"><i class="fa-solid fa-bolt-lightning"></i> Eco Sports</button>
-                            <button class="filter-btn" data-pos-supplier="Xitoy"><i class="fa-solid fa-plane-arrival"></i> Xitoy</button>
+                        <div class="filter-controls" id="pos-suppliers-filter" style="margin-bottom: 0.8rem; padding: 0.3rem;">
+                            <!-- Dynamically loaded -->
                         </div>
 
                         <!-- Category Filters tabs inside POS -->
                         <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">KIYIM TURI:</div>
-                        <div class="filter-controls" style="margin-bottom: 1.5rem; padding: 0.3rem;">
-                            <button class="filter-btn active" data-pos-filter="all"><i class="fa-solid fa-border-all"></i> Barchasi</button>
-                            <button class="filter-btn" data-pos-filter="tshirt"><i class="fa-solid fa-shirt"></i> Futbolkalar</button>
-                            <button class="filter-btn" data-pos-filter="shorts"><i class="fa-solid fa-dumbbell"></i> Shortilar</button>
-                            <button class="filter-btn" data-pos-filter="tracksuit"><i class="fa-solid fa-person-running"></i> Sportivkalar</button>
-                            <button class="filter-btn" data-pos-filter="joggers"><i class="fa-solid fa-route"></i> Trikolar</button>
+                        <div class="filter-controls" id="pos-categories-filter" style="margin-bottom: 1.5rem; padding: 0.3rem;">
+                            <!-- Dynamically loaded -->
                         </div>
 
-                        <!-- Product Tiles Grid -->
-                        <div class="pos-tiles" id="pos-tiles-grid">
-                            <!-- Dynamic Tiles rendered by app.js -->
+                        <!-- Relative Carousel Wrapper with Navigation Controls -->
+                        <div class="carousel-wrapper" style="position: relative; display: block; width: 100%; max-width: 680px; margin: 0 auto;">
+                            <!-- Left navigation arrow -->
+                            <button class="carousel-nav-btn prev-btn" id="pos-prev-btn" style="position: absolute; left: -12px; top: 50%; transform: translateY(-50%); z-index: 10; width: 36px; height: 36px; border-radius: 50%; background: rgba(15,23,42,0.85); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); transition: var(--transition-bounce); box-shadow: var(--shadow-premium);">
+                                <i class="fa-solid fa-chevron-left" style="font-size: 0.85rem;"></i>
+                            </button>
+                            
+                            <!-- Product Tiles Grid -->
+                            <div class="pos-tiles" id="pos-tiles-grid">
+                                <!-- Dynamic Tiles rendered by app.js -->
+                            </div>
+                            
+                            <!-- Right navigation arrow -->
+                            <button class="carousel-nav-btn next-btn" id="pos-next-btn" style="position: absolute; right: -12px; top: 50%; transform: translateY(-50%); z-index: 10; width: 36px; height: 36px; border-radius: 50%; background: rgba(15,23,42,0.85); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); transition: var(--transition-bounce); box-shadow: var(--shadow-premium);">
+                                <i class="fa-solid fa-chevron-right" style="font-size: 0.85rem;"></i>
+                            </button>
                         </div>
                     </section>
 
@@ -159,7 +166,12 @@
                         <div>
                             <h3 style="margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
                                 <span>Kassa Cheki</span>
-                                <span class="pos-receipt-badge" id="pos-receipt-id">#CHK-1002</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pos-receipt-badge" id="pos-receipt-id">#CHK-1002</span>
+                                    <button class="qty-btn" id="mobile-close-cart" style="display: none; width: 28px; height: 28px; background: var(--bg-dark-input); border-radius: 50%; align-items: center; justify-content: center;" title="Yopish">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
                             </h3>
 
                             <!-- Receipt items header -->
@@ -215,10 +227,22 @@
                             </button>
                         </div>
                     </section>
+                    
+                    <!-- Mobile Floating Bottom Cart Bar for Optim1 -->
+                    <div class="mobile-cart-bar" id="pos-mobile-cart-bar">
+                        <div class="mobile-cart-info">
+                            <i class="fa-solid fa-cart-shopping"></i>
+                            <span>Savat: <strong id="mobile-cart-count">0</strong> pachka</span>
+                        </div>
+                        <div class="mobile-cart-price">
+                            <span id="mobile-cart-total">0 UZS</span>
+                            <i class="fa-solid fa-chevron-up"></i>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- CRM SALES ANALYTICS & HISTORY SECTION -->
-                <section class="analytics-section">
+                <section class="analytics-section" id="crm-analytics-section">
                     <h2 style="margin-bottom: 2rem; font-weight: 800;">CRM Savdo <span class="highlight-text">Tahlillari</span></h2>
 
                     <!-- Analytics Cards -->
@@ -292,51 +316,40 @@
         <!-- DEPARTMENT 2: OMBOR BO'LIMI (Warehouse Inventory Management) -->
         <div class="dept-section" id="ombor-section" style="display: none;">
             <div class="container">
-                <section class="pos-grid-container" style="margin-top: 115px; margin-bottom: 50px;">
+                <section class="pos-grid-container" style="margin-top: 1.5rem; margin-bottom: 50px;">
                     <div class="history-header">
                         <div>
                             <h2 style="font-weight: 800;">Ombor Zaxira <span class="highlight-text">Tizimi</span></h2>
                             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.2rem;">Kiyimlar zaxirasi miqdori, tan narxlari va sotilish qiymatlari boshqaruvi.</p>
                         </div>
-                        <div class="search-bar pos-search" style="max-width: 300px;">
-                            <input type="text" id="ombor-search-input" placeholder="Kiyim izlash...">
-                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                        </div>
-                    </div>
-
-                    <!-- Double filters inside Warehouse -->
-                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
-                        <div style="flex-grow: 1; min-width: 250px;">
-                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.3rem;">TA'MINOTCHI:</div>
-                            <div class="filter-controls" style="padding: 0.3rem;">
-                                <button class="filter-btn active" data-ombor-supplier="all"><i class="fa-solid fa-users"></i> Barchasi</button>
-                                <button class="filter-btn" data-ombor-supplier="Alisher Aka"><i class="fa-solid fa-user-tie"></i> Alisher Aka</button>
-                                <button class="filter-btn" data-ombor-supplier="Nodir aka"><i class="fa-solid fa-user-gear"></i> Nodir aka</button>
-                                <button class="filter-btn" data-ombor-supplier="Eco Sports"><i class="fa-solid fa-bolt-lightning"></i> Eco Sports</button>
-                                <button class="filter-btn" data-ombor-supplier="Xitoy"><i class="fa-solid fa-plane-arrival"></i> Xitoy</button>
+                        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                            <button class="btn btn-primary btn-glow" id="add-product-warehouse-btn" style="padding: 0.6rem 1.4rem; font-size: 0.85rem; border-radius: 8px;">
+                                <i class="fa-solid fa-circle-plus"></i> Mahsulot Kirim Qilish
+                            </button>
+                            <div class="search-bar pos-search" style="max-width: 300px; margin: 0;">
+                                <input type="text" id="ombor-search-input" placeholder="Kiyim izlash...">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Inventory Table -->
-                    <div style="overflow-x: auto;">
-                        <table class="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>Kiyim Kodi</th>
-                                    <th>Ta'minotchi</th>
-                                    <th>Kiyim Nomi</th>
-                                    <th>Kiyim Turi</th>
-                                    <th>Standard Sotilish Narxi</th>
-                                    <th>Ombor Zaxirasi</th>
-                                    <th>Holati</th>
-                                    <th>Harakatlar</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ombor-inventory-table-body">
-                                <!-- Rendered dynamically by app.js -->
-                            </tbody>
-                        </table>
+                    <!-- Double filters inside Warehouse [REDESIGNED] -->
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">TA'MINOTCHI:</div>
+                    <div class="filter-controls" id="ombor-suppliers-filter" style="margin-bottom: 0.8rem; padding: 0.3rem;">
+                        <!-- Dynamically loaded -->
+                    </div>
+
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">KIYIM TURI:</div>
+                    <div class="filter-controls" id="ombor-categories-filter" style="margin-bottom: 1.5rem; padding: 0.3rem;">
+                        <!-- Dynamically loaded -->
+                    </div>
+
+                    <!-- Stock totals summary -->
+                    <div class="ombor-summary" id="ombor-summary"></div>
+
+                    <!-- Inventory Cards -->
+                    <div class="ombor-cards-grid" id="ombor-inventory-grid">
+                        <!-- Rendered dynamically by app.js -->
                     </div>
                 </section>
             </div>
@@ -345,7 +358,7 @@
         <!-- DEPARTMENT 3: BUXGALTERIYA (Accounting & Finance Ledger) -->
         <div class="dept-section" id="buxgalteriya-section" style="display: none;">
             <div class="container">
-                <section class="pos-grid-container" style="margin-top: 115px; margin-bottom: 50px;">
+                <section class="pos-grid-container" style="margin-top: 1.5rem; margin-bottom: 50px;">
                     
                     <div class="history-header">
                         <div>
@@ -369,9 +382,9 @@
                         <div class="stat-badge-card">
                             <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-dolly"></i></div>
                             <div class="stat-badge-info">
-                                <h4>Taxminiy Tan Narxi (COGS)</h4>
+                                <h4>Tan Narxi (COGS)</h4>
                                 <strong id="bux-cogs">0 UZS</strong>
-                                <small style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Standart: 60%</small>
+                                <small id="bux-cogs-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Sotilgan mahsulot tannarxi</small>
                             </div>
                         </div>
                         <div class="stat-badge-card">
@@ -386,6 +399,236 @@
                             <div class="stat-badge-info">
                                 <h4>Netto Foyda (Toza)</h4>
                                 <strong id="bux-profit" class="highlight-text" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
+                                <small id="bux-profit-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Foyda marjasi: 0%</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PENDING PRICE APPROVAL PRODUCTS TABLE [NEW] -->
+                    <div class="history-card-container" style="margin-bottom: 2.5rem; border-color: rgba(245, 158, 11, 0.25);">
+                        <div class="history-header">
+                            <div>
+                                <h3 style="font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-hourglass-half" style="color: #f59e0b;"></i>
+                                    <span>Narx Tasdiqlash <span class="highlight-text">Kutilayotgan Mahsulotlar</span></span>
+                                </h3>
+                                <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.2rem;">Omborchi tomondan kirim qilingan va narxlash (Tan narx va Sotish narxi) kutilayotgan mahsulotlar ro'yxati.</p>
+                            </div>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <table class="crm-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mahsulot</th>
+                                        <th>Ta'minotchi</th>
+                                        <th>Kategoriya</th>
+                                        <th>Modeli</th>
+                                        <th>Ranglari / O'lchamlari</th>
+                                        <th>Kirim Soni</th>
+                                        <th style="width: 130px;">Tan Narxi (Pachka)</th>
+                                        <th style="width: 130px;">Sotish (Pachka)</th>
+                                        <th style="width: 130px;">Sotish (Dona)</th>
+                                        <th style="text-align: center;">Harakatlar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bux-pending-approval-table-body">
+                                    <!-- Dynamic pending approval rows rendered by app.js -->
+                                </tbody>
+                            </table>
+                            <div class="empty-history-box" id="bux-pending-empty-state" style="padding: 2.5rem 1rem;">
+                                <i class="fa-solid fa-circle-check" style="color: var(--primary); font-size: 2rem;"></i>
+                                <p>Hozircha barcha kirim mahsulotlari narxi tasdiqlangan. Narx kutilayotgan mahsulotlar yo'q!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUPPLIER STOCK REPORT CARD [REDESIGNED: supplier + currency selector] -->
+                    <div class="history-card-container report-card" style="margin-bottom: 2.5rem; border-color: rgba(16, 185, 129, 0.25);">
+                        <div class="history-header report-head">
+                            <div>
+                                <h3 style="font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
+                                    <span>Ta'minotchilar <span class="highlight-text">Ombor Zaxirasi</span></span>
+                                </h3>
+                                <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.2rem;">Ta'minotchi va valyutani tanlang — joriy zaxira qiymati shu bo'yicha chiqadi.</p>
+                            </div>
+                            <div class="report-controls">
+                                <div class="ctrl-group">
+                                    <label><i class="fa-solid fa-truck-ramp-box"></i> Ta'minotchi</label>
+                                    <select id="report-supplier-select" class="rep-select"></select>
+                                </div>
+                                <div class="ctrl-group">
+                                    <label><i class="fa-solid fa-money-bill-transfer"></i> Valyuta</label>
+                                    <div class="currency-toggle" id="report-currency-toggle">
+                                        <button type="button" class="cur-btn active" data-cur="UZS">UZS</button>
+                                        <button type="button" class="cur-btn" data-cur="USD">USD</button>
+                                    </div>
+                                </div>
+                                <div class="ctrl-group" id="report-rate-group" style="display:none;">
+                                    <label><i class="fa-solid fa-dollar-sign"></i> Kurs (1 USD)</label>
+                                    <input type="number" id="report-usd-rate" class="rep-rate-input" value="12600" min="1" step="100">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="report-kpis" id="report-kpis"></div>
+
+                        <div style="overflow-x: auto;">
+                            <table class="crm-table report-table">
+                                <thead id="report-thead"></thead>
+                                <tbody id="bux-supplier-report-table-body">
+                                    <!-- Dynamic rows rendered by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SUPPLIER INDIVIDUAL REPORT CARD [REDESIGNED: currency + settlement + details toggle] -->
+                    <div class="history-card-container" style="margin-bottom: 2.5rem; border-color: rgba(6, 182, 212, 0.25);">
+                        <div class="history-header report-head">
+                            <div>
+                                <h3 style="font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-address-book" style="color: var(--accent);"></i>
+                                    <span>Ta'minotchilar <span class="highlight-text" style="background: linear-gradient(135deg, var(--accent) 0%, #06b6d4 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Shaxsiy Hisob-Kitob Daftari</span></span>
+                                </h3>
+                                <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.2rem;">Tanlangan ta'minotchi bo'yicha hisob-kitob, oylik kirim/savdo va zaxira balansi.</p>
+                            </div>
+                            <div class="report-controls">
+                                <div class="ctrl-group">
+                                    <label><i class="fa-solid fa-user-tie"></i> Ta'minotchi</label>
+                                    <select id="bux-ind-supplier-select" class="rep-select" style="min-width:150px;"></select>
+                                </div>
+                                <div class="ctrl-group">
+                                    <label><i class="fa-solid fa-calendar-days"></i> Hisobot Oyi</label>
+                                    <select id="bux-ind-month-select" class="rep-select" style="min-width:130px;"></select>
+                                </div>
+                                <div class="ctrl-group">
+                                    <label><i class="fa-solid fa-money-bill-transfer"></i> Valyuta</label>
+                                    <div class="currency-toggle" id="ind-currency-toggle">
+                                        <button type="button" class="cur-btn active" data-cur="UZS">UZS</button>
+                                        <button type="button" class="cur-btn" data-cur="USD">USD</button>
+                                    </div>
+                                </div>
+                                <div class="ctrl-group" id="ind-rate-group" style="display:none;">
+                                    <label><i class="fa-solid fa-dollar-sign"></i> Kurs (1 USD)</label>
+                                    <input type="number" id="ind-usd-rate" class="rep-rate-input" value="12600" min="1" step="100">
+                                </div>
+                                <div class="ctrl-group">
+                                    <label><i class="fa-solid fa-download"></i> Yuklab olish</label>
+                                    <div class="export-btns">
+                                        <button type="button" class="export-btn export-excel" id="ind-export-excel"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                                        <button type="button" class="export-btn export-pdf" id="ind-export-pdf"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SETTLEMENT / DEBT LEDGER BLOCK -->
+                        <div class="settlement-block" id="ind-settlement">
+                            <div class="settle-head">
+                                <div class="settle-title"><i class="fa-solid fa-scale-balanced" style="color:var(--accent);"></i> Ta'minotchi bilan Hisob-Kitob</div>
+                                <button type="button" class="settle-add-btn" id="ind-add-payment-btn"><i class="fa-solid fa-plus"></i> To'lov qo'shish</button>
+                            </div>
+                            <div class="settle-stats">
+                                <div class="settle-stat">
+                                    <div class="settle-stat-label"><i class="fa-solid fa-download" style="color:#3b82f6;"></i> Jami olingan yuk (qarz)</div>
+                                    <div class="settle-stat-value" id="ind-taken-val">0 UZS</div>
+                                </div>
+                                <div class="settle-stat">
+                                    <div class="settle-stat-label"><i class="fa-solid fa-hand-holding-dollar" style="color:var(--primary);"></i> To'langan</div>
+                                    <div class="settle-stat-value" id="ind-paid-val">0 UZS</div>
+                                </div>
+                                <div class="settle-stat settle-balance paid" id="ind-balance-card">
+                                    <div class="settle-stat-label"><i class="fa-solid fa-wallet"></i> Qolgan qarz</div>
+                                    <div class="settle-stat-value" id="ind-balance-val">0 UZS</div>
+                                    <div class="settle-balance-note" id="ind-balance-note"></div>
+                                </div>
+                            </div>
+                            <div class="settle-form" id="ind-payment-form" style="display:none;">
+                                <input type="number" id="ind-payment-amount" class="rep-rate-input" placeholder="To'lov summasi (UZS)" min="0" style="width:200px;">
+                                <input type="text" id="ind-payment-note" class="rep-select" placeholder="Izoh / zametka (ixtiyoriy)" style="min-width:170px;">
+                                <input type="file" id="ind-payment-image" accept="image/*" style="display:none;">
+                                <button type="button" class="settle-attach-btn" id="ind-payment-attach"><i class="fa-solid fa-camera"></i> Rasm biriktirish</button>
+                                <div class="settle-img-preview" id="ind-payment-img-preview" style="display:none;">
+                                    <img id="ind-payment-img-thumb" src="" alt="rasm">
+                                    <button type="button" class="settle-img-remove" id="ind-payment-img-remove" title="Rasmni olib tashlash"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                                <button type="button" class="settle-add-btn" id="ind-payment-save"><i class="fa-solid fa-check"></i> Saqlash</button>
+                                <button type="button" class="settle-cancel-btn" id="ind-payment-cancel">Bekor</button>
+                            </div>
+                            <div class="settle-payments" id="ind-payments-list"></div>
+                        </div>
+
+                        <!-- KPI SUMMARY CARDS -->
+                        <div class="report-kpis ind-kpis" id="ind-kpis">
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:var(--accent); background:rgba(6,182,212,0.1); border-color:rgba(6,182,212,0.2);"><i class="fa-solid fa-boxes-stacked"></i></div>
+                                <div class="rep-kpi-body">
+                                    <div class="rep-kpi-label">Joriy Zaxira Yuklari</div>
+                                    <div class="rep-kpi-value" id="bux-ind-stock-qty">0 pachka (0 dona)</div>
+                                    <div class="ind-kpi-sub">
+                                        <span>Tan: <b id="bux-ind-stock-cogs" style="color:#ef4444;">0 UZS</b></span>
+                                        <span>Sotish: <b id="bux-ind-stock-sell" style="color:var(--primary);">0 UZS</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:#3b82f6; background:rgba(59,130,246,0.1); border-color:rgba(59,130,246,0.2);"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+                                <div class="rep-kpi-body">
+                                    <div class="rep-kpi-label">Oylik Yangi Kirim</div>
+                                    <div class="rep-kpi-value" id="bux-ind-import-qty">0 pachka (0 dona)</div>
+                                    <div class="ind-kpi-sub">
+                                        <span>Kirim qiymati: <b id="bux-ind-import-val" style="color:#3b82f6;">0 UZS</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:#f59e0b; background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.2);"><i class="fa-solid fa-truck-ramp-box"></i></div>
+                                <div class="rep-kpi-body">
+                                    <div class="rep-kpi-label">Oylik Optim Savdo</div>
+                                    <div class="rep-kpi-value" id="bux-ind-optim-qty">0 pachka</div>
+                                    <div class="ind-kpi-sub">
+                                        <span>Savdo qiymati: <b id="bux-ind-optim-val" style="color:#f59e0b;">0 UZS</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:var(--primary); background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.2);"><i class="fa-solid fa-basket-shopping"></i></div>
+                                <div class="rep-kpi-body">
+                                    <div class="rep-kpi-label">Oylik Dona Savdo</div>
+                                    <div class="rep-kpi-value" id="bux-ind-dona-qty">0 dona</div>
+                                    <div class="ind-kpi-sub">
+                                        <span>Savdo qiymati: <b id="bux-ind-dona-val" style="color:var(--primary);">0 UZS</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <div class="ind-details-head">
+                                <h4>Batafsil Mahsulotlar Bo'yicha Hisobot</h4>
+                                <button type="button" class="settle-cancel-btn" id="ind-toggle-details" style="display:none;"><i class="fa-solid fa-list-ul"></i> <span>Batafsil ko'rish</span></button>
+                            </div>
+                            <table class="crm-table report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mahsulot (Model)</th>
+                                        <th>Kiyim Turi</th>
+                                        <th>Zaxira (Pachka/Dona)</th>
+                                        <th>Kirim (Oy bo'yicha)</th>
+                                        <th>Optim Savdo (Oy bo'yicha)</th>
+                                        <th>Dona Savdo (Oy bo'yicha)</th>
+                                        <th>Jami Sotuv Qiymati</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bux-ind-report-table-body">
+                                    <!-- Dynamic rows rendered by app.js -->
+                                </tbody>
+                            </table>
+                            <div class="empty-history-box" id="bux-ind-report-empty-state" style="padding: 2rem 1rem; display: none;">
+                                <i class="fa-solid fa-folder-open" style="color: var(--text-secondary); font-size: 1.8rem; margin-bottom: 8px;"></i>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem;">Ushbu ta'minotchi va oy bo'yicha ma'lumotlar topilmadi.</p>
                             </div>
                         </div>
                     </div>
@@ -427,100 +670,172 @@
 
         <!-- DEPARTMENT 4: SOZLAMALAR BO'LIMI (System Configurations) -->
         <div class="dept-section" id="sozlamalar-section" style="display: none;">
-            <div class="container" style="max-width: 1300px; margin-top: 115px; margin-bottom: 50px;">
-                
-                <div style="margin-bottom: 2rem;">
-                    <h2 style="font-weight: 800; font-size: 1.8rem; margin-bottom: 0.3rem;">Kassa & Tizim <span class="highlight-text">Dashboard Sozlamalari</span></h2>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem;">Integratsiyalar, kassa xavfsizligi, do'kon rekvizitlari va zaxira boshqaruv panellari.</p>
+            <div class="container settings-container">
+
+                <!-- HERO HEADER -->
+                <div class="settings-hero">
+                    <div class="settings-hero-ic"><i class="fa-solid fa-gear"></i></div>
+                    <div class="settings-hero-txt">
+                        <h2>Tizim <span class="highlight-text">Sozlamalari</span></h2>
+                        <p>Kassa xavfsizligi, integratsiyalar, xodimlar, ta'minotchilar va kiyim turlarini bir joyda boshqaring.</p>
+                    </div>
                 </div>
 
-                <div class="settings-grid-layout">
-                    
-                    <!-- COLUMN 1: KASSA SOZLAMALARI -->
-                    <form id="settings-form" class="pos-grid-container" style="padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 20px; backdrop-filter: blur(10px);">
-                        <div>
-                            <h3 style="font-weight: 800; font-size: 1.3rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 10px;">
-                                <i class="fa-solid fa-sliders" style="color: var(--primary);"></i>
-                                <span>Kassa Sozlamalari</span>
-                            </h3>
-                            <p style="color: var(--text-secondary); font-size: 0.8rem; line-height: 1.5;">Kassa tizimi PIN-kodi va Telegram bot integratsiya sozlamalari.</p>
+                <!-- KASSA & INTEGRATSIYA (full width, horizontal) -->
+                <form id="settings-form" class="settings-card settings-block">
+                    <div class="settings-card-head">
+                        <div class="settings-card-ic green"><i class="fa-solid fa-sliders"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Kassa & Integratsiya</h3>
+                            <p>PIN-kod va Telegram bot sozlamalari.</p>
                         </div>
-                        
-                        <!-- KASSA PIN KODI -->
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="settings-pin" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 0.5rem;">
-                                <i class="fa-solid fa-key" style="color: var(--primary); font-size: 0.9rem;"></i> Kassa PIN Kodi
-                            </label>
-                            <input type="password" id="settings-pin" maxlength="4" value="7777" style="font-weight: 800; font-size: 1.4rem; width: 100%; text-align: center; letter-spacing: 8px; padding: 0.8rem; border-radius: 12px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--primary);" required>
-                            <small style="color: var(--text-secondary); font-size: 0.72rem; margin-top: 0.3rem; display: block;">Sotuvni tasdiqlashda ishlatiladigan 4 xonali kassa kodi.</small>
+                        <div class="settings-status"><span class="settings-status-dot"></span> Webhook: <b>Faol</b></div>
+                    </div>
+                    <div class="settings-fields-row">
+                        <div class="settings-field">
+                            <label for="settings-pin"><i class="fa-solid fa-key"></i> Kassa PIN Kodi</label>
+                            <input type="password" id="settings-pin" class="settings-pin-input" maxlength="4" value="7777" required>
+                            <small>Sotuvni tasdiqlash uchun 4 xonali kod.</small>
                         </div>
-
-                        <!-- TELEGRAM BOT TOKEN -->
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="settings-bot-token" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 0.5rem;">
-                                <i class="fa-solid fa-robot" style="color: var(--accent); font-size: 0.9rem;"></i> Telegram Bot API Token
-                            </label>
-                            <input type="text" id="settings-bot-token" value="8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE" required style="font-size: 0.85rem; font-family: monospace; padding: 0.8rem; border-radius: 12px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--text-primary); width: 100%;">
-                            <small style="color: var(--text-secondary); font-size: 0.72rem; margin-top: 0.3rem; display: block;">Hisobot cheklarini yuboruvchi Telegram bot tokeni.</small>
+                        <div class="settings-field">
+                            <label for="settings-bot-token"><i class="fa-solid fa-robot"></i> Telegram Bot Token</label>
+                            <input type="text" id="settings-bot-token" class="settings-input settings-mono" value="8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE" required>
+                            <small>Hisobot cheklarini yuboruvchi bot tokeni.</small>
                         </div>
-
-                        <!-- HISOBOT CHAT ID -->
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label for="settings-chat-id" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 0.5rem;">
-                                <i class="fa-solid fa-paper-plane" style="color: var(--accent); font-size: 0.9rem;"></i> Hisobot Chat ID
-                            </label>
-                            <input type="text" id="settings-chat-id" placeholder="Masalan: 648833917" style="font-size: 0.85rem; font-family: monospace; padding: 0.8rem; border-radius: 12px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--text-primary); width: 100%;">
-                            <small style="color: var(--text-secondary); font-size: 0.72rem; margin-top: 0.3rem; display: block;">Cheklar yuboriladigan shaxsiy/guruh Telegram ID raqami.</small>
+                        <div class="settings-field">
+                            <label for="settings-chat-id"><i class="fa-solid fa-paper-plane"></i> Hisobot Chat ID</label>
+                            <input type="text" id="settings-chat-id" class="settings-input settings-mono" placeholder="Masalan: 648833917">
+                            <small>Cheklar yuboriladigan Telegram ID.</small>
                         </div>
+                    </div>
+                    <button type="submit" class="settings-save-btn"><i class="fa-solid fa-floppy-disk"></i> Sozlamalarni Saqlash</button>
+                </form>
 
-                        <!-- Connection Status & Save Button -->
-                        <div style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.2rem; display: flex; flex-direction: column; gap: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 8px; justify-content: center; background: rgba(16, 185, 129, 0.05); padding: 0.6rem; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.1);">
-                                <span style="display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px #10b981;"></span>
-                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">🟢 Webhook API Connection: Active</span>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-block btn-glow" style="padding: 0.9rem; font-size: 0.9rem; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                <i class="fa-solid fa-floppy-disk"></i> SOZLAMALARNI SAQLASH
-                            </button>
+                <!-- XODIMLAR (accordion, open) -->
+                <div class="settings-accordion open settings-block">
+                    <div class="settings-acc-head">
+                        <div class="settings-card-ic green"><i class="fa-solid fa-users"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Xodimlar Boshqaruvi</h3>
+                            <p>Kassir/omborchi hisoblari va PIN-kodlari.</p>
                         </div>
-                    </form>
-
-                    <!-- COLUMN 2: KASSIRLAR (XODIMLAR) BOSHQARUVI -->
-                    <section class="pos-grid-container" style="padding: 2rem; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 20px; backdrop-filter: blur(10px); display: flex; flex-direction: column; justify-content: space-between;">
-                        <div>
-                            <div class="history-header" style="margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <h3 style="font-weight: 800; font-size: 1.3rem; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 10px;">
-                                        <i class="fa-solid fa-users" style="color: var(--primary);"></i>
-                                        <span>Kassirlar (Xodimlar) <span class="highlight-text">Boshqaruvi</span></span>
-                                    </h3>
-                                    <p style="color: var(--text-secondary); font-size: 0.8rem; line-height: 1.4;">Kassa xodimlari portal hisoblari va tasdiqlash PIN-kodlari boshqaruvi.</p>
-                                </div>
-                                <button class="btn btn-primary btn-glow" id="add-cashier-trigger" style="padding: 0.6rem 1.2rem; font-size: 0.8rem; border-radius: 10px; display: flex; align-items: center; gap: 6px;">
-                                    <i class="fa-solid fa-user-plus"></i> Yangi Kassir Qo'shish
-                                </button>
-                            </div>
-
-                            <div style="overflow-x: auto; margin-top: 1rem; border-radius: 12px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.1);">
-                                <table class="crm-table" style="margin-bottom: 0;">
-                                    <thead>
-                                        <tr>
-                                            <th style="padding: 1rem;">Ismi-Sharifi</th>
-                                            <th style="padding: 1rem;">Login</th>
-                                            <th style="padding: 1rem;">Parol</th>
-                                            <th style="padding: 1rem;">PIN</th>
-                                            <th style="padding: 1rem; text-align: center;">Harakatlar</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="settings-cashiers-table-body">
-                                        <!-- Rendered dynamically by app.js -->
-                                    </tbody>
-                                </table>
-                            </div>
+                        <button type="button" class="settings-add-btn" id="add-cashier-trigger"><i class="fa-solid fa-user-plus"></i> Yangi</button>
+                        <i class="fa-solid fa-chevron-down settings-acc-chevron"></i>
+                    </div>
+                    <div class="settings-acc-body">
+                        <div class="settings-table-wrap">
+                            <table class="crm-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ismi-Sharifi</th>
+                                        <th>Lavozimi</th>
+                                        <th>Login</th>
+                                        <th>Parol</th>
+                                        <th>PIN</th>
+                                        <th style="text-align:center;">Amallar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="settings-cashiers-table-body"></tbody>
+                            </table>
                         </div>
-                    </section>
-
+                    </div>
                 </div>
+
+                <!-- TA'MINOTCHILAR (accordion, collapsed) -->
+                <div class="settings-accordion settings-block">
+                    <div class="settings-acc-head">
+                        <div class="settings-card-ic cyan"><i class="fa-solid fa-users-gear"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Ta'minotchilar</h3>
+                            <p>Yetkazib beruvchilar ro'yxati va ko'rinishi.</p>
+                        </div>
+                        <button type="button" class="settings-add-btn" id="add-supplier-trigger"><i class="fa-solid fa-circle-plus"></i> Yangi</button>
+                        <i class="fa-solid fa-chevron-down settings-acc-chevron"></i>
+                    </div>
+                    <div class="settings-acc-body">
+                        <div class="settings-table-wrap">
+                            <table class="crm-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ta'minotchi</th>
+                                        <th>Ikona</th>
+                                        <th style="text-align:center;">Holati</th>
+                                        <th style="text-align:center;">Amallar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="settings-suppliers-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KIYIM TURLARI (accordion, collapsed) -->
+                <div class="settings-accordion settings-block">
+                    <div class="settings-acc-head">
+                        <div class="settings-card-ic cyan"><i class="fa-solid fa-shirt"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Kiyim Turlari</h3>
+                            <p>Kategoriyalar va kassa filtrlari.</p>
+                        </div>
+                        <button type="button" class="settings-add-btn" id="add-category-trigger"><i class="fa-solid fa-circle-plus"></i> Yangi</button>
+                        <i class="fa-solid fa-chevron-down settings-acc-chevron"></i>
+                    </div>
+                    <div class="settings-acc-body">
+                        <div class="settings-table-wrap">
+                            <table class="crm-table">
+                                <thead>
+                                    <tr>
+                                        <th>Kiyim Nomi</th>
+                                        <th>Tizim Kodi</th>
+                                        <th>Ikona</th>
+                                        <th style="text-align:center;">Holati</th>
+                                        <th style="text-align:center;">Amallar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="settings-categories-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DANGER ZONE -->
+                <div class="danger-zone settings-block">
+                    <div class="danger-zone-info">
+                        <h3><i class="fa-solid fa-triangle-exclamation"></i> Xavfli Hudud</h3>
+                        <p>Loyihadagi <b>BARCHA mahsulotlar</b>, ombor zaxirasi, rang/o'lcham va savdo tarixini butunlay o'chiradi. Bu amalni <b>ortga qaytarib bo'lmaydi!</b></p>
+                    </div>
+                    <button type="button" class="btn-danger-clear" id="settings-clear-project">
+                        <i class="fa-solid fa-trash-can"></i> Loyihani To'liq Tozalash
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLEAR PROJECT (password) MODAL -->
+        <div class="modal" id="clear-project-modal">
+            <div class="modal-content pos-calculator-modal text-center" style="max-width: 400px; padding: 2rem;">
+                <button class="close-modal-btn" id="clear-project-close" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.15); color: #ef4444; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;">Loyihani To'liq Tozalash</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;">Barcha mahsulotlar va ombor zaxirasi butunlay o'chiriladi. Tasdiqlash uchun 4 xonali parolni kiriting.</p>
+
+                <form id="clear-project-form">
+                    <div class="calc-form-group" style="align-items: center; justify-content: center;">
+                        <input type="password" id="clear-project-pass" maxlength="4" inputmode="numeric" placeholder="••••" style="width: 160px; padding: 0.8rem; border-radius: 12px; background: var(--bg-dark-input); border: 2px solid var(--border-color); color: #ef4444; font-weight: 800; font-size: 1.8rem; letter-spacing: 12px; text-align: center;" required autocomplete="off">
+                    </div>
+
+                    <div class="login-error-msg" id="clear-project-error" style="margin-bottom: 1.2rem; text-align: center; justify-content: center; width: 100%; display: none;">
+                        <i class="fa-solid fa-circle-xmark"></i> Parol xato!
+                    </div>
+
+                    <button type="submit" class="btn btn-block" style="margin-top: 0.5rem; background: linear-gradient(135deg,#ef4444 0%,#dc2626 100%); color:#fff; font-weight:800; border:none;">
+                        <i class="fa-solid fa-trash-can"></i> HAMMASINI O'CHIRISH
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -534,8 +849,15 @@
                 <span class="detail-tag" id="calc-product-cat" style="margin-bottom: 1.5rem; display: inline-block;">Futbolkalar</span>
                 
                 <form id="pos-calc-form">
+                    <div class="calc-form-group" id="calc-color-group" style="display:none;">
+                        <label>Rangni tanlang:</label>
+                        <div class="size-selector" id="calc-color-options" style="margin-bottom: 0.5rem;">
+                            <!-- Dynamic colors -->
+                        </div>
+                    </div>
+
                     <div class="calc-form-group">
-                        <label>Sotilayotgan o'lchamni tanlang:</label>
+                        <label id="calc-size-label">Sotilayotgan o'lchamni tanlang:</label>
                         <div class="size-selector" id="calc-size-options" style="margin-bottom: 0.5rem;">
                             <!-- Dynamic sizes -->
                         </div>
@@ -588,6 +910,101 @@
                         <i class="fa-solid fa-circle-check"></i> SOTUVNI AMALGA OSHIRISH
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <!-- PAYMENT DELETE PIN MODAL -->
+        <div class="modal" id="payment-pin-modal">
+            <div class="modal-content pos-calculator-modal text-center" style="max-width: 360px; padding: 2rem;">
+                <button class="close-modal-btn" id="payment-pin-close" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.15); color: #ef4444; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-trash-can"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;">To'lovni O'chirish</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;">To'lovni o'chirish uchun 4 xonali maxsus kodni kiriting.</p>
+
+                <form id="payment-pin-form">
+                    <div class="calc-form-group" style="align-items: center; justify-content: center;">
+                        <input type="password" id="payment-pin-input" maxlength="4" inputmode="numeric" placeholder="••••" style="width: 160px; padding: 0.8rem; border-radius: 12px; background: var(--bg-dark-input); border: 2px solid var(--border-color); color: #ef4444; font-weight: 800; font-size: 1.8rem; letter-spacing: 12px; text-align: center;" required autocomplete="off">
+                    </div>
+
+                    <div class="login-error-msg" id="payment-pin-error" style="margin-bottom: 1.2rem; text-align: center; justify-content: center; width: 100%; display: none;">
+                        <i class="fa-solid fa-circle-xmark"></i> Maxsus kod xato!
+                    </div>
+
+                    <button type="submit" class="btn btn-block" style="margin-top: 0.5rem; background: linear-gradient(135deg,#ef4444 0%,#dc2626 100%); color:#fff; font-weight:800; border:none;">
+                        <i class="fa-solid fa-trash-can"></i> O'CHIRISHNI TASDIQLASH
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- PAYMENT IMAGE LIGHTBOX MODAL -->
+        <div class="modal" id="payment-image-modal">
+            <div class="modal-content" style="max-width: 560px; padding: 1rem; background:#0c111e; border-color: rgba(6,182,212,0.25);">
+                <button class="close-modal-btn" id="payment-image-close" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <img id="payment-image-full" src="" alt="To'lov rasmi" style="width:100%; border-radius:12px; display:block; max-height:75vh; object-fit:contain;">
+            </div>
+        </div>
+
+        <!-- KIRIM PAYMENT (NAQT / NASIYA) MODAL -->
+        <div class="modal" id="kirim-payment-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 440px; padding: 2rem;">
+                <button class="close-modal-btn" id="kirim-payment-close" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1rem; width: 56px; height: 56px; font-size: 1.6rem; background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.15); color: var(--primary); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                </div>
+                <h3 style="text-align:center; margin-bottom: 0.4rem; font-weight: 800;">To'lov Holati</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.2rem; line-height: 1.4; text-align:center;">Mahsulot narxlandi. Ta'minotchiga to'lov qilindimi?</p>
+
+                <div class="kirim-pay-info">
+                    <div><span>Mahsulot</span><b id="kirim-pay-product">—</b></div>
+                    <div><span>Ta'minotchi</span><b id="kirim-pay-supplier">—</b></div>
+                    <div class="kirim-pay-total-row"><span>Umumiy tannarx</span><b id="kirim-pay-total">0 UZS</b></div>
+                </div>
+
+                <div class="kirim-pay-curbar">
+                    <span class="kirim-pay-curlabel"><i class="fa-solid fa-money-bill-transfer"></i> To'lov valyutasi</span>
+                    <div class="currency-toggle" id="kirim-pay-cur-toggle">
+                        <button type="button" class="cur-btn active" data-cur="UZS">UZS</button>
+                        <button type="button" class="cur-btn" data-cur="USD">$</button>
+                    </div>
+                    <span class="kirim-pay-rate-note" id="kirim-pay-rate-note"></span>
+                </div>
+
+                <div class="kirim-pay-type" id="kirim-pay-type">
+                    <button type="button" class="kpay-type-btn active" data-type="naqt"><i class="fa-solid fa-money-bills"></i> Naqt (to'liq)</button>
+                    <button type="button" class="kpay-type-btn" data-type="nasiya"><i class="fa-solid fa-file-invoice-dollar"></i> Nasiya (omonat)</button>
+                </div>
+
+                <div class="kirim-pay-partial" id="kirim-pay-partial" style="display:none;">
+                    <label for="kirim-pay-paid" id="kirim-pay-paid-label">To'langan summa (UZS)</label>
+                    <input type="number" id="kirim-pay-paid" min="0" placeholder="0" value="">
+                    <div class="kirim-pay-remaining-row">Qolgan omonat qarz: <b id="kirim-pay-remaining">0 UZS</b></div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:1.4rem;">
+                    <button type="button" class="btn btn-secondary" id="kirim-pay-skip" style="flex:1; padding:0.7rem; border-radius:10px;">O'tkazib yuborish</button>
+                    <button type="button" class="btn btn-primary btn-glow" id="kirim-pay-save" style="flex:2; padding:0.7rem; border-radius:10px;"><i class="fa-solid fa-circle-check"></i> Saqlash</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- OMBOR PRODUCT DETAIL (rang/o'lcham qolgan holat) MODAL -->
+        <div class="modal" id="ombor-detail-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 500px; padding: 2rem;">
+                <button class="close-modal-btn" id="ombor-detail-close" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <h3 id="ombor-detail-title" style="margin-bottom: 0.3rem; font-weight: 800;">Mahsulot</h3>
+                <span class="detail-tag" id="ombor-detail-sub" style="margin-bottom: 1.2rem; display: inline-block;"></span>
+                <div id="ombor-detail-body"></div>
             </div>
         </div>
 
@@ -740,14 +1157,26 @@
                     <i class="fa-solid fa-user-gear"></i>
                 </div>
                 <h3 style="margin-bottom: 0.5rem; font-weight: 800;" class="text-center" id="cashier-modal-title">Xodim Qo'shish</h3>
-                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;" class="text-center" id="cashier-modal-desc">Kassir portal tizimiga kirishi uchun login paroli va savdoni tasdiqlovchi PIN-kodini belgilang.</p>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;" class="text-center" id="cashier-modal-desc">Xodim portal tizimiga kirishi uchun lavozimi, login paroli va PIN-kodini belgilang.</p>
                 
                 <form id="settings-cashier-form" class="checkout-form" style="gap: 1rem;">
                     <input type="hidden" id="cashier-edit-id" value="">
+                    
                     <div class="form-group">
-                        <label for="cashier-name">Kassir Ismi-Sharifi</label>
+                        <label for="cashier-name">Xodim Ismi-Sharifi</label>
                         <input type="text" id="cashier-name" placeholder="Masalan: Alisher Xodjayev" required>
                     </div>
+
+                    <div class="form-group">
+                        <label for="cashier-role">Lavozimi (Roli)</label>
+                        <select id="cashier-role" required style="width: 100%; padding: 0.7rem; border-radius: 8px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--text-primary);">
+                            <option value="kassir-dona">Kassir (Dona savdo)</option>
+                            <option value="kassir-optim">Kassir (Optim savdo)</option>
+                            <option value="omborchi">Omborchi (Ombor zaxirasi)</option>
+                            <option value="admin">Admin (Administrator)</option>
+                        </select>
+                    </div>
+
                     <div class="form-group">
                         <label for="cashier-username">Login (Username)</label>
                         <input type="text" id="cashier-username" placeholder="Masalan: alisher123" required>
@@ -757,7 +1186,7 @@
                         <input type="text" id="cashier-password" placeholder="Masalan: 123" required>
                     </div>
                     <div class="form-group">
-                        <label for="cashier-pin">Sotuvni tasdiqlovchi PIN (4 xonali raqam)</label>
+                        <label for="cashier-pin">Tasdiqlovchi PIN (4 xonali raqam)</label>
                         <input type="password" id="cashier-pin" maxlength="4" placeholder="••••" required style="font-weight: 800; font-size: 1.25rem; text-align: center; letter-spacing: 5px; width: 100%;">
                     </div>
 
@@ -765,6 +1194,318 @@
                         <i class="fa-solid fa-user-check"></i> SAQLASH
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <!-- SUPPLIER REGISTRATION POPUP MODAL -->
+        <div class="modal" id="settings-supplier-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 400px; padding: 2rem;">
+                <button class="close-modal-btn" id="close-supplier-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.15); color: var(--primary); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-users-gear"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;" class="text-center">Ta'minotchi Qo'shish</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;" class="text-center">Yangi do'kon ta'minotchisini kiritish.</p>
+                
+                <form id="settings-supplier-form" class="checkout-form" style="gap: 1rem;">
+                    <div class="form-group">
+                        <label for="supplier-name">Ta'minotchi Nomi</label>
+                        <input type="text" id="supplier-name" placeholder="Masalan: Turkiya" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="supplier-icon">Ikonasi (FontAwesome Klassi)</label>
+                        <input type="text" id="supplier-icon" placeholder="Masalan: fa-solid fa-plane-departure" required>
+                        <small style="color: var(--text-muted); font-size: 0.7rem;">Tavsiya: <code>fa-solid fa-plane-arrival</code>, <code>fa-solid fa-user-tie</code></small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem;">
+                        <i class="fa-solid fa-circle-check"></i> SAQLASH
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- CATEGORY REGISTRATION POPUP MODAL -->
+        <div class="modal" id="settings-category-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 400px; padding: 2rem;">
+                <button class="close-modal-btn" id="close-category-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.15); color: var(--primary); display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-shirt"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;" class="text-center">Kiyim Turi Qo'shish</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;" class="text-center">Kiyim turini kod, nom va ikona bilan ro'yxatga olish.</p>
+                
+                <form id="settings-category-form" class="checkout-form" style="gap: 1rem;">
+                    <div class="form-group">
+                        <label for="category-name">Kiyim Turi Nomi</label>
+                        <input type="text" id="category-name" placeholder="Masalan: Kurtkalar" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category-code">Tizim Kodi (Kategoriya)</label>
+                        <input type="text" id="category-code" placeholder="Masalan: jackets" required>
+                        <small style="color: var(--text-muted); font-size: 0.7rem;">Faqat inglizcha kichik harflarda: <code>jackets</code>, <code>socks</code></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category-icon">Ikonasi (FontAwesome Klassi)</label>
+                        <input type="text" id="category-icon" placeholder="Masalan: fa-solid fa-snowflake" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem;">
+                        <i class="fa-solid fa-circle-check"></i> SAQLASH
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- WAREHOUSE PRODUCT ARRIVAL (KIRIM) MODAL [NEW] -->
+        <div class="modal" id="add-product-warehouse-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 500px; padding: 2rem;">
+                <button class="close-modal-btn" id="close-product-warehouse-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="stat-badge-icon" style="margin: 0 auto 1.2rem; width: 60px; height: 60px; font-size: 1.8rem; background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.15); color: #6366f1; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-warehouse"></i>
+                </div>
+                <h3 style="margin-bottom: 0.5rem; font-weight: 800;" class="text-center">Yangi Mahsulot Kirim Qilish</h3>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; line-height: 1.4;" class="text-center">Omborga kelgan yangi mahsulot ma'lumotlarini kiriting. Narxlar keyinroq Buxgalteriya tomonidan tasdiqlanadi.</p>
+                
+                <form id="add-product-warehouse-form" class="checkout-form" style="gap: 1rem;">
+                    <div class="form-group">
+                        <label for="warehouse-supplier">Ta'minotchi</label>
+                        <select id="warehouse-supplier" required style="width: 100%; padding: 0.7rem; border-radius: 8px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--text-primary);">
+                            <!-- Dynamic suppliers list -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="warehouse-category">Kiyim Turi (Kategoriya)</label>
+                        <select id="warehouse-category" required style="width: 100%; padding: 0.7rem; border-radius: 8px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--text-primary);">
+                            <!-- Dynamic categories list -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="warehouse-name">Mahsulot Nomi</label>
+                        <input type="text" id="warehouse-name" placeholder="Masalan: Oversize Futbolka Eco" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="warehouse-model">Modeli / Kodi</label>
+                        <input type="text" id="warehouse-model" placeholder="Masalan: M-202" required>
+                    </div>
+
+                    <div class="form-group" style="position: relative;">
+                        <label style="margin-bottom: 0.5rem; display: block; font-weight: 700;">Ranglar (Ustiga bosing va belgilang)</label>
+                        
+                        <!-- Trigger Box -->
+                        <div class="color-picker-trigger" id="warehouse-color-selector-trigger">
+                            <span id="warehouse-color-trigger-text" style="color: var(--text-secondary);">Ranglarni tanlang...</span>
+                            <i class="fa-solid fa-chevron-down dropdown-arrow" style="font-size: 0.8rem; color: var(--text-muted); transition: var(--transition-bounce);"></i>
+                        </div>
+
+                        <!-- Dropdown Panel -->
+                        <div class="color-picker-dropdown" id="warehouse-colors-dropdown">
+                            <div class="size-checkbox-grid" style="grid-template-columns: repeat(1, 1fr); max-height: 250px; overflow-y: auto; padding: 0.5rem; gap: 0.5rem;">
+                                <label class="checkbox-badge color-badge-qora" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Qora">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #000000; border: 1px solid rgba(255,255,255,0.2);"></span>
+                                    <span>Qora</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-oq" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Oq">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #ffffff; border: 1px solid rgba(255,255,255,0.2);"></span>
+                                    <span>Oq</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-navy" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="To'q ko'k">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #0a1931;"></span>
+                                    <span>To'q ko'k</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-parlament" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Parlament">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #1b4f72;"></span>
+                                    <span>Parlament</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-bolotniy" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Bolotniy">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #3b5323;"></span>
+                                    <span>Bolotniy</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-bardoviy" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Bardoviy">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #800020;"></span>
+                                    <span>Bardoviy</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-qizil" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Qizil">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #d32f2f;"></span>
+                                    <span>Qizil</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-xakki" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Xakki">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #c3b091;"></span>
+                                    <span>Xakki</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-melanj" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Melanj">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #bdc3c7;"></span>
+                                    <span>Melanj</span>
+                                </label>
+                                <label class="checkbox-badge color-badge-antra" style="justify-content: flex-start; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.2);">
+                                    <input type="checkbox" name="warehouse-color" value="Antra Melanj">
+                                    <span class="color-dot" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; background-color: #2c3e50;"></span>
+                                    <span>Antra Melanj</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="margin-bottom: 0.5rem; display: block;">Mavjud O'lchamlar (Belgilang)</label>
+                        <div class="size-checkbox-grid">
+                            <label class="checkbox-badge">
+                                <input type="checkbox" name="warehouse-size" value="S">
+                                <span>S</span>
+                            </label>
+                            <label class="checkbox-badge">
+                                <input type="checkbox" name="warehouse-size" value="M" checked>
+                                <span>M</span>
+                            </label>
+                            <label class="checkbox-badge">
+                                <input type="checkbox" name="warehouse-size" value="L" checked>
+                                <span>L</span>
+                            </label>
+                            <label class="checkbox-badge">
+                                <input type="checkbox" name="warehouse-size" value="XL" checked>
+                                <span>XL</span>
+                            </label>
+                            <label class="checkbox-badge">
+                                <input type="checkbox" name="warehouse-size" value="XXL">
+                                <span>XXL</span>
+                            </label>
+                            <label class="checkbox-badge">
+                                <input type="checkbox" name="warehouse-size" value="3XL">
+                                <span>3XL</span>
+                            </label>
+                        </div>
+                    </div>
+                    <!-- Dynamic color-wise pack quantity inputs [NEW] -->
+                    <div class="form-group" id="warehouse-qty-container" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <!-- Automatically generated inputs -->
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow" style="margin-top: 1rem; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+                        <i class="fa-solid fa-circle-plus"></i> OMBORGA SAQLASH (NARX KUTILMOQDA)
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        </div>
+
+        <!-- WAREHOUSE PRODUCT KIRIM DOCUMENT INVOICE MODAL [NEW] -->
+        <div class="modal" id="warehouse-document-modal">
+            <div class="modal-content pos-calculator-modal" style="max-width: 550px; padding: 2.2rem; background: #0c111e; border-color: rgba(99, 102, 241, 0.25);">
+                <button class="close-modal-btn" id="close-warehouse-doc-modal" aria-label="Yopish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                
+                <!-- Header -->
+                <div class="text-center" style="margin-bottom: 1.5rem;">
+                    <div class="success-icon-badge" style="margin: 0 auto 0.8rem; font-size: 3.2rem; line-height: 1; text-shadow: 0 0 15px rgba(99,102,241,0.4); color: #6366f1;">
+                        <i class="fa-solid fa-file-invoice"></i>
+                    </div>
+                    <h3 style="font-weight: 800; font-size: 1.4rem;">Kirim Hujjati Rasmiylashtirildi</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.8rem;">Buxgalteriya bo'limiga tasdiqlash uchun yuboriladigan rasmiy hujjat.</p>
+                </div>
+
+                <!-- Print-ready Paper Document -->
+                <div class="kirim-document-paper" id="kirim-document-print-area" style="background: #111827; border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem; color: #e2e8f0; position: relative;">
+                    <div style="text-align: center; margin-bottom: 1.2rem; border-bottom: 2px solid var(--border-color); padding-bottom: 1rem;">
+                        <h4 style="font-size: 1.2rem; font-weight: 800; color: #6366f1; letter-spacing: 1px; margin: 0 0 0.2rem 0;">ECO SPORTS MENSWEAR</h4>
+                        <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 2px;">Kassa & Ombor Zaxira Tizimi</span>
+                        <h2 style="font-size: 1.2rem; font-weight: 900; margin: 1rem 0 0 0; color: #fff; letter-spacing: 0.5px;">KIRIM QABUL QILISH HUJJATI</h2>
+                        <span class="document-id-badge" id="kirim-doc-id" style="display: inline-block; background: rgba(99, 102, 241, 0.1); color: #6366f1; padding: 0.2rem 0.8rem; border-radius: 6px; font-weight: bold; font-family: monospace; font-size: 0.9rem; margin-top: 0.5rem;">KRM-1029</span>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.2rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>SANA / VAQT:</span>
+                            <strong id="kirim-doc-date" style="color: #fff;">01-Iyun, 2026 11:27</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>TA'MINOTCHI:</span>
+                            <strong id="kirim-doc-supplier" style="color: #fff;">Alisher Aka</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>MAS'UL OMBORCHI:</span>
+                            <strong id="kirim-doc-manager" style="color: #fff;">Omborchi 1</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>HOLATI:</span>
+                            <span class="channel-tag status-pending" style="font-size:0.7rem; padding: 0.2rem 0.5rem;">TASDIQ KUTILMOQDA</span>
+                        </div>
+                    </div>
+
+                    <!-- Dashed Border -->
+                    <div style="border-top: 1px dashed var(--border-color); margin-bottom: 1.2rem;"></div>
+
+                    <!-- Product Specs Table -->
+                    <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.2rem; margin-bottom: 1.2rem;">
+                        <h4 style="font-weight: 800; font-size: 0.9rem; color: #fff; margin: 0 0 0.8rem 0; text-transform: uppercase;">Mahsulot Tavsifnomasi:</h4>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.8rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 2.5fr; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.4rem;">
+                                <span style="color: var(--text-muted);">NOM / MODEL:</span>
+                                <strong id="kirim-doc-prod-name" style="color: #fff;">Premium Oversize Polo (P-990)</strong>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 2.5fr; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.4rem;">
+                                <span style="color: var(--text-muted);">KATEGORIYA:</span>
+                                <strong id="kirim-doc-prod-cat" style="color: #6366f1; text-transform: uppercase;">Futbolkalar</strong>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 2.5fr; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.4rem;">
+                                <span style="color: var(--text-muted);">RANGLARI:</span>
+                                <strong id="kirim-doc-prod-colors" style="color: #fff;">Qora, Xakki, Melanj</strong>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 2.5fr; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.4rem;">
+                                <span style="color: var(--text-muted);">O'LCHAMLARI:</span>
+                                <strong id="kirim-doc-prod-sizes" style="color: #fff;">M, L, XL, XXL</strong>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 2.5fr; padding-top: 0.2rem;">
+                                <span style="color: var(--text-muted); font-weight: 800; font-size: 0.85rem;">KIRIM SONI:</span>
+                                <strong id="kirim-doc-prod-qty" style="color: var(--primary); font-size: 1.1rem; font-weight: 900;">80 dona</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seals and Signatures Mock -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem; font-size: 0.72rem; text-align: center; color: var(--text-muted);">
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 0.5rem; position: relative;">
+                            <span>Omborchi Imzosi</span>
+                            <div style="position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-family: 'Brush Script MT', cursive, sans-serif; font-size: 1rem; color: rgba(99,102,241,0.5);">Omborchi_1</div>
+                        </div>
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 0.5rem; position: relative;">
+                            <span>Buxgalteriya Imzosi</span>
+                            <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; color: #f59e0b; font-weight: 700; border: 1px dashed rgba(245,158,11,0.4); padding: 2px 4px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">TASDIQ KUTILMOQDA</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.8rem; margin-top: 1.8rem;">
+                    <button class="btn btn-secondary" id="print-warehouse-doc-btn" style="flex: 1; border-color: rgba(99,102,241,0.3); color: #fff; background: rgba(99, 102, 241, 0.05); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="fa-solid fa-print"></i> CHOP ETISH / PDF YUKLASH
+                    </button>
+                    <button class="btn btn-primary" id="close-warehouse-doc-action-btn" style="flex: 1; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+                        <i class="fa-solid fa-circle-check"></i> TAHRIRNI YAKUNLASH
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -776,7 +1517,12 @@
         </footer>
     </div>
 
+    <!-- Export libraries: Excel (SheetJS) + PDF (jsPDF + html2canvas) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <!-- Core App Logic -->
-    <script src="app.js"></script>
+    <script src="app.js?v=4.6"></script>
 </body>
 </html>

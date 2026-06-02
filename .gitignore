@@ -12,3 +12,17 @@ Desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+
+# Dependencies
+node_modules/
+
+# Test / QA artifacts
+test_screenshot.js
+verify_packs_kirim.js
+*_verified.png
+stock_report_grouped.png
+diag_*.js
+verify_*.js
+shot_*.js
