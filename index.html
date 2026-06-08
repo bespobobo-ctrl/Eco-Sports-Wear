@@ -1006,6 +1006,31 @@
                     </div>
                 </div>
 
+                <!-- BUXGALTERIYA DAFTARI (DOUBLE-ENTRY SOYA DAFTARI) -->
+                <div class="settings-accordion settings-block" id="shadow-block">
+                    <div class="settings-acc-head">
+                        <div class="settings-card-ic" style="background:linear-gradient(135deg,#7c3aed,#db2777)"><i class="fa-solid fa-book"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Buxgalteriya Daftari (Double-Entry)</h3>
+                            <p>Professional ikki tomonlama hisob: oborot-balans, foyda-zarar, mustaqil cross-check.</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-down settings-acc-chevron"></i>
+                    </div>
+                    <div class="settings-acc-body">
+                        <div class="diag-panel">
+                            <div class="diag-hint" style="margin-bottom:1rem;"><i class="fa-solid fa-eye-slash"></i> Bu "soya daftari" — <b>kassir ko'rmaydi</b>. Har sotuv/kirim/to'lov/xarajat fonda ikki tomonlama (debet=kredit) yoziladi. Agar debet≠kredit yoki cross-check farq qilsa — hisobда xato bor degani.</div>
+                            <div class="date-range-quick" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
+                                <button type="button" class="cur-btn shadow-q-btn active" data-range="month">Bu oy</button>
+                                <button type="button" class="cur-btn shadow-q-btn" data-range="lastmonth">O'tgan oy</button>
+                                <button type="button" class="cur-btn shadow-q-btn" data-range="year">Bu yil</button>
+                                <button type="button" class="cur-btn shadow-q-btn" data-range="all">Hammasi</button>
+                                <button type="button" class="diag-report-btn" id="shadow-excel" style="margin-left:auto;"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                            </div>
+                            <div id="shadow-results"><div class="diag-hint"><i class="fa-solid fa-circle-info"></i> Yuklanmoqda...</div></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- MA'LUMOT ZAXIRASI (BACKUP / RESTORE) -->
                 <div class="settings-accordion settings-block" id="backup-block">
                     <div class="settings-acc-head">
@@ -1767,7 +1792,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- Core App Logic -->
-    <script src="app.js?v=6.7"></script>
+    <script src="app.js?v=6.8"></script>
     <!-- PWA: Service Worker'ni ro'yxatdan o'tkazish (offline kesh) -->
     <script>
         if ('serviceWorker' in navigator) {

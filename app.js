@@ -2841,6 +2841,181 @@ function renderLedgerView() {
     box.innerHTML = html;
 }
 
+// ============================================================
+// 2-BOSQICH: DOUBLE-ENTRY "SOYA DAFTARI" (shadow ledger)
+// Kassir BUNI KO'RMAYDI (faqat admin Sozlamalarida). Har moliyaviy hodisa
+// fonda ikki tomonlama (debet=kredit) yoziladi → professional oborot-balans,
+// foyda-zarar va mustaqil cross-check (xato/farqni topadi).
+// 1-bosqich o'zgarmas jurnaldan HOSILA qilinadi (drift yo'q, yangi yozuv yo'q).
+// ============================================================
+const SHADOW_ACCOUNTS = {
+    KASSA:            { label: "Kassa (naqd pul)",             type: "aktiv" },
+    OMBOR:            { label: "Tovar zaxirasi (ombor)",       type: "aktiv" },
+    MIJOZ_QARZI:      { label: "Mijoz qarzi (debitor)",        type: "aktiv" },
+    TAMINOTCHI_QARZI: { label: "Ta'minotchi qarzi (kreditor)", type: "passiv" },
+    SAVDO:            { label: "Savdo daromadi",               type: "daromad" },
+    TANNARX:          { label: "Sotilgan tovar tannarxi",      type: "xarajat" },
+    XARAJAT:          { label: "Operatsion xarajatlar",        type: "xarajat" }
+};
+
+let shadowState = { from: null, to: null, label: "Bu oy" };
+
+function _withinPeriod(d, from, to) {
+    if (!from && !to) return true;
+    if (!d) return false;
+    if (from && d < new Date(from.getFullYear(), from.getMonth(), from.getDate())) return false;
+    if (to && d > new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59)) return false;
+    return true;
+}
+
+// 1-bosqich jurnaldan balanslangan double-entry postinglar hosil qiladi
+function buildShadowLedger(from, to) {
+    const accounts = {};
+    Object.keys(SHADOW_ACCOUNTS).forEach(k => accounts[k] = { debit: 0, credit: 0 });
+    const post = (acc, dr, cr) => { if (!accounts[acc]) accounts[acc] = { debit: 0, credit: 0 }; accounts[acc].debit += dr || 0; accounts[acc].credit += cr || 0; };
+
+    const entries = (typeof effectiveLedger === "function" ? effectiveLedger() : [])
+        .filter(e => _withinPeriod(e.ts ? new Date(e.ts) : _saleDateObj(e.date), from, to));
+    entries.forEach(e => {
+        const amt = Math.abs(Number(e.amount) || 0);
+        if (e.type === "sale") {
+            const total = Number(e.data && e.data.total) || amt;
+            const received = Number(e.data && e.data.received != null ? e.data.received : total);
+            const debt = Number(e.data && e.data.debt) || 0;
+            post("KASSA", received, 0);
+            if (debt > 0) post("MIJOZ_QARZI", debt, 0);
+            post("SAVDO", 0, total);
+        } else if (e.type === "kirim") {
+            post("OMBOR", amt, 0);
+            post("TAMINOTCHI_QARZI", 0, amt);
+        } else if (e.type === "supplier_payment") {
+            post("TAMINOTCHI_QARZI", amt, 0);
+            post("KASSA", 0, amt);
+        } else if (e.type === "expense") {
+            post("XARAJAT", amt, 0);
+            post("KASSA", 0, amt);
+        }
+        // customer_debt: sotuv ichida hisobga olingan — qo'shimcha post yo'q (ikki marta sanalmasin)
+    });
+
+    // COGS sozlash: davr sotuvlarining haqiqiy tannarxi (tovar ombordan chiqadi)
+    const periodSales = (state.salesHistory || []).filter(tx => _withinPeriod(_saleDateObj(tx.timestamp), from, to));
+    const cogs = calcRealCOGS(periodSales).cogs;
+    if (cogs > 0) { post("TANNARX", cogs, 0); post("OMBOR", 0, cogs); }
+
+    let totalDebit = 0, totalCredit = 0;
+    Object.keys(accounts).forEach(k => { totalDebit += accounts[k].debit; totalCredit += accounts[k].credit; });
+    const revenue = accounts.SAVDO ? accounts.SAVDO.credit : 0;
+    const cogsTotal = accounts.TANNARX ? accounts.TANNARX.debit : 0;
+    const expenseTotal = accounts.XARAJAT ? accounts.XARAJAT.debit : 0;
+    const grossProfit = revenue - cogsTotal;
+    const netProfit = grossProfit - expenseTotal;
+
+    return {
+        accounts, totalDebit, totalCredit,
+        balanced: Math.abs(totalDebit - totalCredit) <= 1,
+        pnl: { revenue, cogs: cogsTotal, expense: expenseTotal, grossProfit, netProfit },
+        count: entries.length, label: shadowState.label
+    };
+}
+
+// Mustaqil cross-check (HAMMA vaqt) — double-entry'ning xato topish kuchi:
+// daftar qoldig'ini haqiqiy holat bilan solishtiradi.
+function shadowCrossCheck() {
+    const all = buildShadowLedger(null, null).accounts;
+    const out = [];
+
+    // 1) Ombor: daftar qoldig'i vs haqiqiy zaxira qiymati (qoldiq × tannarx)
+    const deOmbor = all.OMBOR.debit - all.OMBOR.credit;
+    let realInv = 0;
+    const catalog = [...PRODUCTS, ...(state.dynamicProducts || [])];
+    catalog.forEach(p => {
+        const qty = Number(inventory[p.id]) || 0;
+        if (qty <= 0) return;
+        const packSizes = (p.sizes && p.sizes.length) ? p.sizes.length : 5;
+        const perUnit = p.cogs ? (p.cogs / packSizes) : (p.price ? p.price * 0.6 : 0);
+        realInv += qty * perUnit;
+    });
+    out.push({ label: "Ombor: daftar ↔ haqiqiy zaxira", de: deOmbor, real: realInv, ok: Math.abs(deOmbor - realInv) <= Math.max(2000, realInv * 0.03) });
+
+    // 2) Mijoz qarzi: daftar vs to'lanmagan qarz ro'yxati
+    const deAR = all.MIJOZ_QARZI.debit - all.MIJOZ_QARZI.credit;
+    const realAR = (customerDebts || []).filter(d => !d.paid).reduce((s, d) => s + (Number(d.debt) || 0), 0);
+    out.push({ label: "Mijoz qarzi: daftar ↔ qarz ro'yxati", de: deAR, real: realAR, ok: Math.abs(deAR - realAR) <= 1000 });
+
+    // 3) Ta'minotchi qarzi: daftar vs (olingan − to'langan)
+    const deAP = all.TAMINOTCHI_QARZI.credit - all.TAMINOTCHI_QARZI.debit;
+    let realAP = 0;
+    (state.suppliers || []).forEach(sup => {
+        if (typeof getSupplierTakenValue === "function" && typeof getSupplierPaidTotal === "function")
+            realAP += Math.max(0, getSupplierTakenValue(sup.name) - getSupplierPaidTotal(sup.name));
+    });
+    out.push({ label: "Ta'minotchi qarzi: daftar ↔ hisob", de: deAP, real: realAP, ok: Math.abs(deAP - realAP) <= Math.max(2000, realAP * 0.05) });
+
+    return out.map(r => ({ label: r.label, ok: r.ok, deTxt: formatPrice(Math.round(r.de)), realTxt: formatPrice(Math.round(r.real)) }));
+}
+
+function setShadowRange(kind) {
+    const now = new Date(), y = now.getFullYear(), mo = now.getMonth();
+    let from = null, to = null, label = "Hammasi";
+    if (kind === "month") { from = new Date(y, mo, 1); to = new Date(y, mo + 1, 0); label = "Bu oy"; }
+    else if (kind === "lastmonth") { from = new Date(y, mo - 1, 1); to = new Date(y, mo, 0); label = "O'tgan oy"; }
+    else if (kind === "year") { from = new Date(y, 0, 1); to = new Date(y, 11, 31); label = "Bu yil (" + y + ")"; }
+    shadowState = { from, to, label };
+    document.querySelectorAll(".shadow-q-btn").forEach(b => b.classList.toggle("active", b.dataset.range === kind));
+    renderShadowLedger();
+}
+
+function renderShadowLedger() {
+    const box = document.getElementById("shadow-results");
+    if (!box) return;
+    const r = buildShadowLedger(shadowState.from, shadowState.to);
+    let html = '<div class="diag-hint" style="margin-bottom:0.8rem;background:' + (r.balanced ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)") + ';">' +
+        (r.balanced
+            ? '<i class="fa-solid fa-circle-check" style="color:#10b981"></i> Kitoblar BALANSDA — debet = kredit (' + formatPrice(r.totalDebit) + ')'
+            : '<i class="fa-solid fa-circle-xmark" style="color:#ef4444"></i> BALANS BUZILGAN: debet ' + formatPrice(r.totalDebit) + ' ≠ kredit ' + formatPrice(r.totalCredit)) +
+        ' · ' + r.label + '</div>';
+
+    html += '<div style="overflow-x:auto;"><table class="crm-table"><thead><tr><th>Hisob</th><th>Tur</th><th>Debet</th><th>Kredit</th><th>Qoldiq</th></tr></thead><tbody>';
+    Object.keys(SHADOW_ACCOUNTS).forEach(k => {
+        const a = r.accounts[k]; if (!a || (a.debit === 0 && a.credit === 0)) return;
+        const net = a.debit - a.credit, meta = SHADOW_ACCOUNTS[k];
+        html += '<tr><td>' + meta.label + '</td><td><span class="channel-tag">' + meta.type + '</span></td>' +
+            '<td>' + formatPrice(a.debit) + '</td><td>' + formatPrice(a.credit) + '</td>' +
+            '<td style="font-weight:700;">' + formatPrice(Math.abs(net)) + (net >= 0 ? " D" : " K") + '</td></tr>';
+    });
+    html += '<tr style="font-weight:800;border-top:2px solid var(--primary);"><td colspan="2">JAMI</td><td>' + formatPrice(r.totalDebit) + '</td><td>' + formatPrice(r.totalCredit) + '</td><td>—</td></tr></tbody></table></div>';
+
+    html += '<div style="margin-top:1rem;"><h4 style="font-size:0.85rem;margin-bottom:0.5rem;"><i class="fa-solid fa-sack-dollar"></i> Foyda-Zarar (' + r.label + ')</h4>' +
+        '<div class="diag-row"><span>Savdo daromadi</span><small>' + formatPrice(r.pnl.revenue) + '</small></div>' +
+        '<div class="diag-row"><span>− Tannarx (COGS)</span><small>' + formatPrice(r.pnl.cogs) + '</small></div>' +
+        '<div class="diag-row"><span>= Yalpi foyda</span><small>' + formatPrice(r.pnl.grossProfit) + '</small></div>' +
+        '<div class="diag-row"><span>− Operatsion xarajat</span><small>' + formatPrice(r.pnl.expense) + '</small></div>' +
+        '<div class="diag-row" style="font-weight:800;color:var(--primary);"><span>= Netto foyda</span><small>' + formatPrice(r.pnl.netProfit) + '</small></div></div>';
+
+    const cc = shadowCrossCheck();
+    html += '<div style="margin-top:1rem;"><h4 style="font-size:0.85rem;margin-bottom:0.5rem;"><i class="fa-solid fa-code-compare"></i> Mustaqil cross-check (hamma vaqt) — farq = xato signali</h4>';
+    cc.forEach(c => {
+        const ic = c.ok ? '<i class="fa-solid fa-circle-check" style="color:#10b981"></i>' : '<i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b"></i>';
+        html += '<div class="diag-row"><span>' + ic + " " + c.label + '</span><small>daftar ' + c.deTxt + " · haqiqiy " + c.realTxt + '</small></div>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+}
+
+function exportShadowExcel() {
+    if (typeof XLSX === "undefined") { alert("Excel kutubxonasi yuklanmadi. Internet aloqasini tekshiring."); return; }
+    const r = buildShadowLedger(shadowState.from, shadowState.to);
+    const wb = XLSX.utils.book_new();
+    const tb = [["ECO SPORTS — Oborot-balans", r.label], [], ["Hisob", "Tur", "Debet", "Kredit", "Qoldiq"]];
+    Object.keys(SHADOW_ACCOUNTS).forEach(k => { const a = r.accounts[k]; if (!a) return; tb.push([SHADOW_ACCOUNTS[k].label, SHADOW_ACCOUNTS[k].type, a.debit, a.credit, a.debit - a.credit]); });
+    tb.push(["JAMI", "", r.totalDebit, r.totalCredit, ""]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tb), "Oborot-balans");
+    const pnl = [["Foyda-Zarar", r.label], [], ["Savdo daromadi", r.pnl.revenue], ["Tannarx (COGS)", r.pnl.cogs], ["Yalpi foyda", r.pnl.grossProfit], ["Operatsion xarajat", r.pnl.expense], ["Netto foyda", r.pnl.netProfit]];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pnl), "Foyda-Zarar");
+    XLSX.writeFile(wb, "Buxgalteriya_Daftari_" + (r.label || "hisobot").replace(/[^\w-]+/g, "_") + ".xlsx");
+}
+
 function getSupplierPaidTotal(name) {
     return (supplierPayments[name] || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
 }
@@ -6056,6 +6231,13 @@ function setupEventListeners() {
     // Svertka akkordeoni ochilganda jurnalni yangilab ko'rsatish
     const reconHead = document.querySelector("#recon-block .settings-acc-head");
     safeBind(reconHead, "click", () => { renderLedgerView(); });
+
+    // --- BUXGALTERIYA DAFTARI (DOUBLE-ENTRY SOYA DAFTARI) ---
+    document.querySelectorAll(".shadow-q-btn").forEach(b => safeBind(b, "click", () => setShadowRange(b.dataset.range)));
+    safeBind(document.getElementById("shadow-excel"), "click", exportShadowExcel);
+    const shadowHead = document.querySelector("#shadow-block .settings-acc-head");
+    safeBind(shadowHead, "click", () => renderShadowLedger());
+    setShadowRange("month"); // boshlang'ich davr
     // Sozlamalar yuklanganda oxirgi svertka natijasi va jurnalni ko'rsatish
     try {
         const _lr = localStorage.getItem("eco_last_reconcile_result");
