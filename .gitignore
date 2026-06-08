@@ -28,3 +28,4 @@ verify_*.js
 shot_*.js
 diag_*.png
 *_screenshot.png
+.commitmsg.tmp

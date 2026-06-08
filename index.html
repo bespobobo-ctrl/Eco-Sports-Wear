@@ -919,6 +919,34 @@
                     </div>
                 </div>
 
+                <!-- KUNLIK SVERTKA (RECONCILIATION) + O'ZGARMAS HISOB JURNALI -->
+                <div class="settings-accordion settings-block" id="recon-block">
+                    <div class="settings-acc-head">
+                        <div class="settings-card-ic" style="background:linear-gradient(135deg,#6366f1,#0891b2)"><i class="fa-solid fa-scale-balanced"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Kunlik Svertka & Hisob Jurnali</h3>
+                            <p>Har kuni kassa, qarz va ombor hisobini avtomatik tekshiradi. O'zgarmas audit jurnali.</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-down settings-acc-chevron"></i>
+                    </div>
+                    <div class="settings-acc-body">
+                        <div class="diag-panel">
+                            <div class="diag-hint" style="margin-bottom:1rem;"><i class="fa-solid fa-circle-info"></i> Svertka kuniga bir marta avtomatik ishlaydi. Muammo topilsa, admin Telegram'iga ogohlantirish yuboriladi. Hisob jurnali har sotuv/kirim/to'lov/xarajatni o'zgarmas yozadi — o'chirib bo'lmaydi.</div>
+                            <div class="diag-actions">
+                                <button type="button" class="diag-run-btn" id="recon-run-btn" style="background:linear-gradient(135deg,#6366f1,#0891b2)"><i class="fa-solid fa-scale-balanced"></i> Hozir Tekshirish</button>
+                                <button type="button" class="diag-report-btn" id="recon-send-btn"><i class="fa-brands fa-telegram"></i> Telegram'ga Yuborish</button>
+                            </div>
+                            <div class="diag-results" id="recon-results"><div class="diag-hint"><i class="fa-solid fa-circle-info"></i> "Hozir Tekshirish"ni bosing yoki kunlik avtomatik natijani kuting.</div></div>
+
+                            <!-- O'ZGARMAS HISOB JURNALI (AUDIT TARIXI) -->
+                            <div class="sim-panel">
+                                <div class="sim-head"><i class="fa-solid fa-book"></i> Hisob Jurnali (Audit Tarixi) <span class="sim-safe"><i class="fa-solid fa-lock"></i> o'zgarmas — o'chirilmaydi</span></div>
+                                <div class="diag-results" id="ledger-results"><div class="diag-hint"><i class="fa-solid fa-circle-info"></i> Yuklanmoqda...</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- MA'LUMOT ZAXIRASI (BACKUP / RESTORE) -->
                 <div class="settings-accordion settings-block" id="backup-block">
                     <div class="settings-acc-head">
@@ -1680,7 +1708,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- Core App Logic -->
-    <script src="app.js?v=6.5"></script>
+    <script src="app.js?v=6.6"></script>
     <!-- PWA: Service Worker'ni ro'yxatdan o'tkazish (offline kesh) -->
     <script>
         if ('serviceWorker' in navigator) {

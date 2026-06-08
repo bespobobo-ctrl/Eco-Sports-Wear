@@ -1519,6 +1519,18 @@ async function completeSale() {
     localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
     dbSaveFullInventory();
 
+    // --- O'ZGARMAS JURNAL: sotuv yozuvi (audit izi + kunlik svertka uchun) ---
+    if (typeof appendLedger === "function") {
+        appendLedger("sale", {
+            ref: orderId, account: "kassa", direction: "in", amount: received,
+            note: debtAmount > 0 ? "Nasiya — qarz " + formatPrice(debtAmount) : "To'liq to'lov",
+            data: { total: finalTotal, received: received, debt: debtAmount, itemCount: itemCount, channel: newTx.channel, debtor: debtor ? debtor.name : null }
+        });
+        if (debtAmount > 0 && debtor) {
+            appendLedger("customer_debt", { ref: orderId, account: "mijoz_qarzi", direction: "neutral", amount: debtAmount, note: debtor.name + " · qaytarish " + (debtor.dueDate || "") });
+        }
+    }
+
     // Formulate a beautiful invoice message in corporate HTML format
     let orderMsg = `<b>💼 ECO SPORTS - TIZIMDA SOTUV YAKUNLANDI</b>\n`;
     orderMsg += `<b>Chek ID:</b> <code>#${orderId}</code>\n`;
@@ -2321,13 +2333,297 @@ function saveProductPrices() {
     localStorage.setItem("eco_sports_product_prices", JSON.stringify(productPrices));
     if (typeof dbSaveConfig === "function") dbSaveConfig("eco_product_prices", productPrices);
 }
+
+// ============================================================
+// 1-BOSQICH: O'ZGARMAS HISOB JURNALI (IMMUTABLE LEDGER)
+// Har bir moliyaviy hodisa (sotuv, kirim, to'lov, xarajat) o'zgarmas
+// yozuv sifatida saqlanadi — HECH QACHON tahrirlanmaydi/o'chirilmaydi.
+// Xato bo'lsa — eski yozuv qoladi, "bekor" (reversal) yozuvi qo'shiladi.
+// Bu audit izini beradi: "bu pul qayerdan keldi?" savoliga doim javob bo'ladi.
+// ============================================================
+const LEDGER_SYNC_CAP = 2000; // bulutga faqat oxirgi N yozuv (blob hajmini cheklash)
+let ledger = [];
+try { const _lg = localStorage.getItem("eco_sports_ledger"); if (_lg) ledger = JSON.parse(_lg) || []; } catch (e) { ledger = []; }
+
+function _ledgerActor() {
+    if (currentUser && currentUser.name) return currentUser.name;
+    try { if (typeof activeCashierLabel !== "undefined" && activeCashierLabel && activeCashierLabel.textContent) return activeCashierLabel.textContent; } catch (e) {}
+    return "tizim";
+}
+
+function saveLedger() {
+    try { localStorage.setItem("eco_sports_ledger", JSON.stringify(ledger)); } catch (e) {}
+    // Bulutga: o'zgarmas append-log — oxirgi LEDGER_SYNC_CAP yozuv.
+    // Ko'p qurilmali yo'qotishsiz birlashtirish (union-merge) syncFromSupabase'da bajariladi.
+    if (typeof dbSaveConfig === "function") {
+        const recent = ledger.length > LEDGER_SYNC_CAP ? ledger.slice(-LEDGER_SYNC_CAP) : ledger;
+        dbSaveConfig("eco_ledger", recent);
+    }
+}
+
+// O'zgarmas yozuv qo'shish (faqat ADD). type: sale|customer_debt|supplier_payment|kirim|expense|reversal
+function appendLedger(type, fields) {
+    fields = fields || {};
+    const now = new Date();
+    const entry = {
+        jid: "LJ-" + now.getTime() + "-" + Math.random().toString(36).slice(2, 7),
+        ts: now.toISOString(),
+        date: now.toLocaleDateString('uz-UZ') + " " + now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
+        type: type,
+        ref: fields.ref != null ? String(fields.ref) : null,
+        actor: _ledgerActor(),
+        account: fields.account || "boshqa",
+        direction: fields.direction || "neutral", // in | out | neutral
+        amount: Math.round(fields.amount || 0),
+        note: fields.note || "",
+        data: fields.data || {},
+        reverses: fields.reverses || null
+    };
+    ledger.push(entry);
+    saveLedger();
+    return entry;
+}
+
+// Bekor qilish — eski yozuv O'CHIRILMAYDI, teskari yozuv qo'shiladi (audit izi saqlanadi)
+function reverseLedgerEntry(jid, reason) {
+    const orig = ledger.find(e => e.jid === jid);
+    if (!orig) return null;
+    if (ledger.some(e => e.reverses === jid)) return null; // allaqachon bekor qilingan
+    return appendLedger("reversal", {
+        ref: orig.ref, account: orig.account,
+        direction: orig.direction === "in" ? "out" : (orig.direction === "out" ? "in" : "neutral"),
+        amount: -orig.amount,
+        note: "BEKOR: " + (reason || "") + " (asl: " + orig.type + ")",
+        reverses: jid, data: { reversedType: orig.type }
+    });
+}
+
+// Bekor qilinmagan (haqiqiy) yozuvlar
+function effectiveLedger() {
+    const reversed = new Set();
+    ledger.forEach(e => { if (e.reverses) reversed.add(e.reverses); });
+    return ledger.filter(e => e.type !== "reversal" && !reversed.has(e.jid));
+}
+
+// ============================================================
+// 1-BOSQICH: KUNLIK AVTOMATIK SVERTKA (RECONCILIATION)
+// Sinxronlangan holatni (yagona manba) ichki ziddiyatlarga tekshiradi va
+// hisob jurnali bilan solishtiradi. READ-ONLY — hech narsa o'zgartirmaydi.
+// ============================================================
+function _reconDayKey(d) {
+    d = d || new Date();
+    const pad = n => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+}
+
+// salesHistory timestamp "DD.MM.YYYY HH:MM" (uz-UZ) → "YYYY-MM-DD" kaliti yoki null
+function _reconSaleDayKey(ts) {
+    if (!ts) return null;
+    const m = String(ts).match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+    if (!m) return null;
+    const pad = n => String(n).padStart(2, "0");
+    return m[3] + "-" + pad(m[2]) + "-" + pad(m[1]);
+}
+
+function runReconciliation(dayKey) {
+    dayKey = dayKey || _reconDayKey();
+    const cats = [];
+    let pass = 0, warn = 0, fail = 0;
+    const add = (cat, label, status, detail) => {
+        let c = cats.find(x => x.name === cat);
+        if (!c) { c = { name: cat, rows: [] }; cats.push(c); }
+        c.rows.push({ label, status, detail: detail || "" });
+        if (status === "pass") pass++; else if (status === "warn") warn++; else fail++;
+    };
+
+    const sales = state.salesHistory || [];
+    const todaySales = sales.filter(s => _reconSaleDayKey(s.timestamp) === dayKey);
+
+    // 1) KASSA SVERTKASI (bugun)
+    let daySubtotal = 0, dayReceived = 0, dayDebt = 0;
+    todaySales.forEach(s => {
+        daySubtotal += Number(s.totalPaid) || 0;
+        dayReceived += Number(s.received != null ? s.received : s.totalPaid) || 0;
+        dayDebt += Number(s.debt) || 0;
+    });
+    const dayExpenses = (expenses || []).filter(e => _reconSaleDayKey(e.timestamp) === dayKey)
+        .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const netCash = dayReceived - dayExpenses;
+    add("Kassa svertkasi (bugun)", "Sotuvlar soni: " + todaySales.length, "pass", "");
+    add("Kassa svertkasi (bugun)", "Jami savdo: " + formatPrice(daySubtotal), "pass", "");
+    add("Kassa svertkasi (bugun)", "Naqd olingan: " + formatPrice(dayReceived), "pass", "");
+    add("Kassa svertkasi (bugun)", "Nasiya (qarz): " + formatPrice(dayDebt), dayDebt > 0 ? "warn" : "pass", dayDebt > 0 ? "Bugun qarzga berilgan" : "");
+    add("Kassa svertkasi (bugun)", "Xarajatlar: " + formatPrice(dayExpenses), "pass", "");
+    add("Kassa svertkasi (bugun)", "Sof kassa oqimi: " + formatPrice(netCash), "pass", "olingan − xarajat");
+
+    // 2) HAR SOTUV BALANSI: received + qarz = jami
+    let balErr = 0;
+    sales.forEach(s => {
+        const total = Number(s.totalPaid) || 0;
+        const rec = Number(s.received != null ? s.received : total) || 0;
+        const debt = Number(s.debt) || 0;
+        if (Math.abs((rec + debt) - total) > 1) balErr++;
+    });
+    add("Sotuv balansi", "received + qarz = jami (har chek)", balErr === 0 ? "pass" : "fail",
+        balErr === 0 ? sales.length + " ta chek to'g'ri" : balErr + " ta chekda balans buzilgan");
+
+    // 3) MIJOZ QARZI MOSLIGI (qarz daftari = sotuvlardagi qarz)
+    const debtSalesTotal = sales.reduce((s, x) => s + (Number(x.debt) || 0), 0);
+    const cdTotal = (customerDebts || []).filter(d => !d.paid).reduce((s, d) => s + (Number(d.debt) || 0), 0);
+    add("Mijoz qarzi", "Qarz daftari = sotuvlardagi qarz", Math.abs(debtSalesTotal - cdTotal) <= 1 ? "pass" : "warn",
+        "Sotuv: " + formatPrice(debtSalesTotal) + " | Daftar: " + formatPrice(cdTotal));
+
+    // 4) JURNAL ↔ SOTUV MOSLIGI (buzilish/o'chirib yuborish detektori)
+    const eff = effectiveLedger();
+    const ledgerSaleRefs = new Set(eff.filter(e => e.type === "sale").map(e => String(e.ref)));
+    const saleIds = new Set(sales.map(s => String(s.id)));
+    let salesNoLedger = 0, ledgerNoSale = 0;
+    saleIds.forEach(id => { if (!ledgerSaleRefs.has(id)) salesNoLedger++; });
+    ledgerSaleRefs.forEach(ref => { if (!saleIds.has(ref)) ledgerNoSale++; });
+    add("Jurnal mosligi", "Har sotuvda jurnal yozuvi bor", salesNoLedger === 0 ? "pass" : "warn",
+        salesNoLedger === 0 ? "Hammasi jurnalda" : salesNoLedger + " ta sotuv jurnalsiz (eski yoki tashqaridan)");
+    add("Jurnal mosligi", "Har jurnal sotuviga sotuv mavjud", ledgerNoSale === 0 ? "pass" : "fail",
+        ledgerNoSale === 0 ? "Mos" : ledgerNoSale + " ta jurnal yozuviga sotuv yo'q (o'chirilgan?)");
+
+    // 5) MANFIY OMBOR
+    let negStock = 0;
+    Object.keys(inventory || {}).forEach(id => { if ((Number(inventory[id]) || 0) < 0) negStock++; });
+    add("Ombor", "Manfiy qoldiq yo'q", negStock === 0 ? "pass" : "fail", negStock === 0 ? "" : negStock + " ta mahsulot manfiy");
+
+    // 6) NARXSIZ TASDIQLANGAN MAHSULOT
+    const catalog = [...PRODUCTS, ...(state.dynamicProducts || [])];
+    const zeroPriced = catalog.filter(p => p.approved && (!p.price || p.price <= 0)).length;
+    add("Narxlash", "Tasdiqlangan mahsulotda narx bor", zeroPriced === 0 ? "pass" : "warn", zeroPriced === 0 ? "" : zeroPriced + " ta tasdiqlangan mahsulot narxsiz");
+
+    // 7) TA'MINOTCHI QARZI (ortiqcha to'lov)
+    let overPaid = 0;
+    (state.suppliers || []).forEach(sup => {
+        if (typeof getSupplierTakenValue !== "function" || typeof getSupplierPaidTotal !== "function") return;
+        if (getSupplierPaidTotal(sup.name) - getSupplierTakenValue(sup.name) > 1) overPaid++;
+    });
+    add("Ta'minotchi qarzi", "Ortiqcha to'lov yo'q", overPaid === 0 ? "pass" : "warn", overPaid === 0 ? "" : overPaid + " ta ta'minotchiga olingandan ko'p to'langan");
+
+    const total = pass + warn + fail;
+    const score = total ? Math.round((pass / total) * 100) : 100;
+    return { dayKey, generatedAt: new Date().toISOString(), pass, warn, fail, score, cats,
+        summary: { sales: todaySales.length, subtotal: daySubtotal, received: dayReceived, debt: dayDebt, expenses: dayExpenses, netCash } };
+}
+
+function _reconcileTextReport(r) {
+    let t = "📊 ECO SPORTS — KUNLIK SVERTKA (" + r.dayKey + ")\n";
+    t += "Ball: " + r.score + "% | ✅ " + r.pass + " ⚠️ " + r.warn + " ❌ " + r.fail + "\n";
+    t += "Sotuvlar: " + r.summary.sales + " | Savdo: " + formatPrice(r.summary.subtotal) + "\n";
+    t += "Olingan: " + formatPrice(r.summary.received) + " | Qarz: " + formatPrice(r.summary.debt) + " | Xarajat: " + formatPrice(r.summary.expenses) + "\n";
+    if (r.fail > 0 || r.warn > 0) {
+        t += "\n⚠️ Muammolar:\n";
+        r.cats.forEach(c => c.rows.forEach(row => {
+            if (row.status !== "pass") t += (row.status === "fail" ? "❌" : "⚠️") + " " + c.name + ": " + row.label + (row.detail ? " — " + row.detail : "") + "\n";
+        }));
+    } else {
+        t += "\n✅ Barcha tekshiruvlar toza.";
+    }
+    return t;
+}
+
+async function sendReconciliationToTelegram(r) {
+    const targetChatId = appConfig.chatId || "";
+    try {
+        await fetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: _reconcileTextReport(r), chatId: targetChatId }) });
+        return true;
+    } catch (e) { console.warn("Svertka Telegram yuborilmadi:", e); return false; }
+}
+
+let _lastReconcile = null;
+
+// Kuniga bir marta avtomatik svertka (init'da chaqiriladi — bir kunda bir marta)
+async function runDailyReconciliationIfNeeded() {
+    const today = _reconDayKey();
+    if (localStorage.getItem("eco_last_reconcile_date") === today) return; // bugun bajarilgan
+    const r = runReconciliation(today);
+    _lastReconcile = r;
+    localStorage.setItem("eco_last_reconcile_date", today);
+    try { localStorage.setItem("eco_last_reconcile_result", JSON.stringify(r)); } catch (e) {}
+    // Muammo bo'lsa va admin qurilmasi onlayn bo'lsa — Telegram'ga ogohlantirish
+    const online = !(typeof navigator !== "undefined" && navigator.onLine === false);
+    if ((r.fail > 0 || r.warn > 0) && online && currentUser && currentUser.role === "admin") {
+        sendReconciliationToTelegram(r);
+    }
+    if (document.getElementById("recon-results")) paintReconciliation(r);
+    return r;
+}
+
+function startReconciliation() {
+    _lastReconcile = runReconciliation();
+    localStorage.setItem("eco_last_reconcile_date", _reconDayKey());
+    try { localStorage.setItem("eco_last_reconcile_result", JSON.stringify(_lastReconcile)); } catch (e) {}
+    paintReconciliation(_lastReconcile);
+    renderLedgerView();
+}
+
+function paintReconciliation(r) {
+    const box = document.getElementById("recon-results");
+    if (!box) return;
+    if (!r) { box.innerHTML = '<div class="diag-hint"><i class="fa-solid fa-circle-info"></i> "Hozir Tekshirish"ni bosing.</div>'; return; }
+    let html = '<div class="diag-summary" style="display:flex">' +
+        '<div class="diag-stat diag-stat-pass"><span>' + r.pass + "</span><small>O'tdi</small></div>" +
+        '<div class="diag-stat diag-stat-warn"><span>' + r.warn + '</span><small>Ogoh</small></div>' +
+        '<div class="diag-stat diag-stat-fail"><span>' + r.fail + '</span><small>Xato</small></div>' +
+        '<div class="diag-score">' + r.score + '%</div></div>';
+    html += '<div class="diag-hint" style="margin:0.6rem 0"><i class="fa-solid fa-calendar-day"></i> ' + r.dayKey +
+        ' · Sotuv ' + r.summary.sales + ' · Olingan ' + formatPrice(r.summary.received) + ' · Qarz ' + formatPrice(r.summary.debt) + '</div>';
+    r.cats.forEach(c => {
+        const cFail = c.rows.some(x => x.status === "fail");
+        const cWarn = c.rows.some(x => x.status === "warn");
+        const badge = cFail ? "❌" : (cWarn ? "⚠️" : "✅");
+        html += '<div class="diag-cat"><div class="diag-cat-head">' + badge + " " + c.name + '</div>';
+        c.rows.forEach(row => {
+            const ic = row.status === "pass" ? '<i class="fa-solid fa-circle-check" style="color:#10b981"></i>'
+                : row.status === "warn" ? '<i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b"></i>'
+                : '<i class="fa-solid fa-circle-xmark" style="color:#ef4444"></i>';
+            html += '<div class="diag-row"><span>' + ic + " " + row.label + '</span><small>' + (row.detail || "") + '</small></div>';
+        });
+        html += '</div>';
+    });
+    box.innerHTML = html;
+}
+
+function _ledgerTypeLabel(t) {
+    return ({ sale: "🛒 Sotuv", customer_debt: "🔴 Mijoz qarzi", supplier_payment: "💸 Ta'minotchi to'lovi", kirim: "📦 Kirim", expense: "💼 Xarajat", reversal: "↩️ Bekor" })[t] || t;
+}
+
+function renderLedgerView() {
+    const box = document.getElementById("ledger-results");
+    if (!box) return;
+    const reversed = new Set(); ledger.forEach(e => { if (e.reverses) reversed.add(e.reverses); });
+    const recent = ledger.slice(-50).reverse();
+    if (recent.length === 0) {
+        box.innerHTML = '<div class="diag-hint"><i class="fa-solid fa-circle-info"></i> Jurnal bo\'sh. Sotuv/kirim/to\'lov qilinganda yozuvlar shu yerda ko\'rinadi.</div>';
+        return;
+    }
+    let html = '<div class="diag-hint" style="margin-bottom:0.6rem"><i class="fa-solid fa-clock-rotate-left"></i> Oxirgi ' + recent.length + " yozuv (jami " + ledger.length + "). Yozuvlar o'chirilmaydi — faqat bekor qilinadi.</div>";
+    recent.forEach(e => {
+        const isRev = reversed.has(e.jid);
+        const sign = e.direction === "out" ? "−" : (e.direction === "in" ? "+" : "");
+        const amt = e.amount ? sign + formatPrice(Math.abs(e.amount)) : "";
+        html += '<div class="diag-row" style="' + (isRev ? "opacity:0.5;text-decoration:line-through" : "") + '">' +
+            '<span>' + _ledgerTypeLabel(e.type) + ' <small style="opacity:0.65">' + e.date + " · " + e.actor + '</small></span>' +
+            '<small>' + amt + (e.note ? " · " + e.note : "") + '</small></div>';
+    });
+    box.innerHTML = html;
+}
+
 function getSupplierPaidTotal(name) {
     return (supplierPayments[name] || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
 }
 function addSupplierPayment(name, amount, note, image) {
     if (!supplierPayments[name]) supplierPayments[name] = [];
-    supplierPayments[name].push({ id: "pay-" + Date.now(), amount: Number(amount) || 0, note: note || "", date: new Date().toISOString(), image: image || null });
+    const pid = "pay-" + Date.now();
+    supplierPayments[name].push({ id: pid, amount: Number(amount) || 0, note: note || "", date: new Date().toISOString(), image: image || null });
     saveSupplierPayments();
+    if (typeof appendLedger === "function") {
+        appendLedger("supplier_payment", { ref: pid, account: "taminotchi_qarzi", direction: "out", amount: Number(amount) || 0, note: name + (note ? " · " + note : "") });
+    }
 }
 function deleteSupplierPayment(name, id) {
     if (!supplierPayments[name]) return;
@@ -3708,6 +4004,11 @@ function approveProductPrice(productId, cogs, sellingPrice, donaPrice) {
             status: "TASDIQLANDI"
         });
         localStorage.setItem("eco_sports_kirim_history", JSON.stringify(state.kirimHistory));
+    }
+
+    // --- O'ZGARMAS JURNAL: kirim (mahsulot qabul qilindi) yozuvi ---
+    if (typeof appendLedger === "function") {
+        appendLedger("kirim", { ref: p.id, account: "ombor", direction: "in", amount: totalCost, note: p.name + " · " + p.supplier + " · " + (p.qty || 0) + " dona" });
     }
 
     // Re-render UI
@@ -5444,7 +5745,10 @@ function setupEventListeners() {
             expenses.push(newExpense);
             localStorage.setItem("eco_sports_expenses", JSON.stringify(expenses));
             dbSaveExpense(newExpense);
-            
+            if (typeof appendLedger === "function") {
+                appendLedger("expense", { ref: newExpense.id, account: "xarajat", direction: "out", amount: amount, note: desc + " · " + cat });
+            }
+
             renderBuxgalteriya();
             if (expenseModal) expenseModal.classList.remove("open");
         });
@@ -5507,6 +5811,23 @@ function setupEventListeners() {
     safeBind(document.getElementById("diag-run-btn"), "click", startDiagnostics);
     safeBind(document.getElementById("diag-fix-btn"), "click", applyDiagFixes);
     safeBind(document.getElementById("diag-report-btn"), "click", downloadDiagReport);
+
+    // --- KUNLIK SVERTKA & HISOB JURNALI ---
+    safeBind(document.getElementById("recon-run-btn"), "click", startReconciliation);
+    safeBind(document.getElementById("recon-send-btn"), "click", async () => {
+        const r = _lastReconcile || runReconciliation();
+        const ok = await sendReconciliationToTelegram(r);
+        alert(ok ? "✅ Svertka Telegram'ga yuborildi." : "⚠️ Yuborilmadi (lokal dev yoki tarmoq xatosi).");
+    });
+    // Svertka akkordeoni ochilganda jurnalni yangilab ko'rsatish
+    const reconHead = document.querySelector("#recon-block .settings-acc-head");
+    safeBind(reconHead, "click", () => { renderLedgerView(); });
+    // Sozlamalar yuklanganda oxirgi svertka natijasi va jurnalni ko'rsatish
+    try {
+        const _lr = localStorage.getItem("eco_last_reconcile_result");
+        if (_lr) { _lastReconcile = JSON.parse(_lr); paintReconciliation(_lastReconcile); }
+    } catch (e) {}
+    renderLedgerView();
 
     // Diagnostika natijalari: filtr tugmalari + muammo qatorini ochish (delegatsiya)
     const diagResultsBox = document.getElementById("diag-results");
@@ -5967,6 +6288,9 @@ async function initApp() {
             console.warn("Supabase: Background sync failed:", err);
         });
     }
+
+    // Kunlik avtomatik svertka — sync tugashini kutib (date-guard: kuniga 1 marta)
+    setTimeout(() => { try { runDailyReconciliationIfNeeded(); } catch (e) { console.warn("Svertka:", e); } }, 4500);
 }
 
 // 13.5. SAFE JSON PARSING HELPER
@@ -6037,6 +6361,20 @@ async function syncFromSupabase() {
             if (configMap["eco_color_stock"]) {
                 colorStock = configMap["eco_color_stock"];
                 localStorage.setItem("eco_sports_color_stock", JSON.stringify(colorStock));
+            }
+            // Hisob jurnali — o'zgarmas append-log: bulut + mahalliyni jid bo'yicha
+            // BIRLASHTIRISH (union, yo'qotishsiz). Ko'p qurilmada ham yozuvlar saqlanadi.
+            if (configMap["eco_ledger"] && Array.isArray(configMap["eco_ledger"])) {
+                const seenJids = new Set(ledger.map(e => e.jid));
+                let mergedAny = false;
+                configMap["eco_ledger"].forEach(e => {
+                    if (e && e.jid && !seenJids.has(e.jid)) { ledger.push(e); seenJids.add(e.jid); mergedAny = true; }
+                });
+                if (mergedAny) {
+                    ledger.sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
+                    localStorage.setItem("eco_sports_ledger", JSON.stringify(ledger));
+                    if (typeof renderLedgerView === "function") renderLedgerView();
+                }
             }
 
             // Loyiha boshqa qurilmada tozalangan bo'lsa — bu yerda ham tozalash
