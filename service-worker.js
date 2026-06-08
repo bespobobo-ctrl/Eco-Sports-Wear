@@ -1,6 +1,6 @@
 // Eco Sports — Service Worker (offline-first app shell)
 // Maqsad: bozordagi zaif internetda ilova fayllarini keshlab, internetsiz ham ochilishi.
-const CACHE = 'eco-sports-cache-v2';
+const CACHE = 'eco-sports-cache-v3';
 
 // Ilova "qobig'i" — internetsiz ochilishi uchun zarur fayllar
 const APP_SHELL = [
@@ -56,22 +56,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3) Bizning statik fayllar (css/js/assets) — stale-while-revalidate.
-  //    Keshdan darhol beriladi, fonda yangilanadi.
+  // 3) Bizning statik fayllar (css/js/html) — NETWORK-FIRST.
+  //    Online bo'lsa DOIM eng yangi kod (yangilanish darhol ko'rinadi), offline bo'lsa
+  //    keshdan beriladi. (Ilgari stale-while-revalidate edi → eski app.js qotib qolardi.)
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(req).then((cached) => {
-        const network = fetch(req)
-          .then((res) => {
-            if (res && res.status === 200) {
-              const copy = res.clone();
-              caches.open(CACHE).then((c) => c.put(req, copy));
-            }
-            return res;
-          })
-          .catch(() => cached);
-        return cached || network;
-      })
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
     );
     return;
   }
