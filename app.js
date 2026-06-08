@@ -390,6 +390,16 @@ let appConfig = {
     storePhone: "+998 90 123 45 67"
 };
 
+// Xavfsizlik: bot tokeni HECH QACHON frontendда (localStorage/bulut config) saqlanmasligi
+// kerak — server (Vercel ENV) orqali /api/notify ishlatiladi. Eski saqlangan tokenni tozalaydi.
+function _stripFrontendToken() {
+    if (appConfig && appConfig.botToken) {
+        appConfig.botToken = "";
+        try { localStorage.setItem("eco_sports_config", JSON.stringify(appConfig)); } catch (e) {}
+        if (typeof dbSaveConfig === "function") dbSaveConfig("app_config", appConfig);
+    }
+}
+
 // Default stock allocation of 50 units for each menswear catalog product
 const defaultInventory = {};
 PRODUCTS.forEach(p => {
@@ -5076,8 +5086,8 @@ async function runSystemDiagnostics() {
     const tokenExposed = tokenRe.test(clientToken) || tokenRe.test(legacyToken);
     P("Xavfsizlik", "Telegram BOT_TOKEN", tokenExposed ? "warn" : "pass",
         tokenExposed ? "Token hali frontend'da saqlanyapti — /api/notify (server ENV) ishlatilsin" : "Token frontend'da yo'q — serverda yashirin ✅");
-    P("Xavfsizlik", "Supabase anon kalit", "warn",
-        "Anon kalit frontendда (odatiy). Supabase'da RLS (Row Level Security) yoqilganini tekshiring — anon kalit DELETE qila olmasligi kerak");
+    P("Xavfsizlik", "Supabase anon kalit", "pass",
+        "Anon kalit ommaviy (odatiy, xavfsiz). RLS yoqilgan — anon DELETE bloklangan; tozalash admin_clear_project (RPC) yoki serverless orqali. Supabase'da RLS yoqiqligini bir marta tasdiqlang.");
     const sw = ("serviceWorker" in navigator);
     P("Xavfsizlik", "Offline himoya (SW)", sw ? "pass" : "warn", sw ? "Service Worker qo'llab-quvvatlanadi" : "Service Worker yo'q (iOS Telegram?) — offline ishlamasligi mumkin");
     // Ma'lumot zaxirasi yoshi
@@ -6594,6 +6604,7 @@ async function initApp() {
     } else {
         localStorage.setItem("eco_sports_config", JSON.stringify(appConfig));
     }
+    _stripFrontendToken(); // eski saqlangan bot tokenni frontenddan tozalash (xavfsizlik)
 
     // Load suppliers database
     const savedSuppliers = localStorage.getItem("eco_sports_suppliers");
@@ -6800,6 +6811,7 @@ async function syncFromSupabase() {
             if (configMap["app_config"]) {
                 appConfig = configMap["app_config"];
                 localStorage.setItem("eco_sports_config", JSON.stringify(appConfig));
+                _stripFrontendToken(); // bulutdan kelgan eski tokenni ham tozalash
             }
             if (configMap["eco_suppliers"]) {
                 state.suppliers = configMap["eco_suppliers"];
