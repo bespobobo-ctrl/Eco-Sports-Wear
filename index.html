@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Eco Sports - Enterprise Kassa & CRM Tizimi</title>
+    <!-- PWA: offline ishlash + planshetga o'rnatish -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10b981">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Eco Sports">
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Supabase SDK -->
@@ -15,9 +24,12 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Main Style sheet -->
-    <link rel="stylesheet" href="style.css?v=2.5">
+    <link rel="stylesheet" href="style.css?v=3.9">
 </head>
 <body>
+
+    <!-- Offline/Online sinxronlash holati ko'rsatkichi -->
+    <div id="sync-badge" class="sync-badge sync-online"><i class="fa-solid fa-circle-check"></i> Onlayn</div>
 
     <!-- SCREEN 1: SECURE LOGIN PORTAL -->
     <div class="login-wrapper" id="login-screen">
@@ -31,37 +43,81 @@
                 <div class="logo-subtext">CRM & KASSA TIZIMI</div>
             </div>
             
-            <p class="login-desc">Tizimga kirish uchun login va parolingizni kiriting.</p>
-            
-            <form id="login-form" class="login-form">
-                <div class="form-group">
-                    <label for="login-username">Login</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fa-solid fa-user"></i>
-                        <input type="text" id="login-username" required placeholder="Foydalanuvchi nomi">
+            <!-- MODE SELECT: choose Admin or Sotuvchi -->
+            <div id="login-mode-select">
+                <p class="login-desc">Tizimga kirish usulini tanlang.</p>
+                <div class="login-mode-grid">
+                    <button type="button" class="login-mode-btn" id="mode-admin-btn">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span>Admin</span>
+                    </button>
+                    <button type="button" class="login-mode-btn login-mode-seller" id="mode-seller-btn">
+                        <i class="fa-solid fa-cash-register"></i>
+                        <span>Sotuvchi</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ADMIN LOGIN: username + password -->
+            <div id="admin-login-view" style="display: none;">
+                <p class="login-desc">Admin sifatida kirish uchun login va parolingizni kiriting.</p>
+
+                <form id="login-form" class="login-form">
+                    <div class="form-group">
+                        <label for="login-username">Login</label>
+                        <div class="input-icon-wrapper">
+                            <i class="fa-solid fa-user"></i>
+                            <input type="text" id="login-username" placeholder="Foydalanuvchi nomi">
+                        </div>
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="login-password">Parol</label>
-                    <div class="input-icon-wrapper">
-                        <i class="fa-solid fa-lock"></i>
-                        <input type="password" id="login-password" required placeholder="Parolingiz">
-                        <i class="fa-solid fa-eye-slash toggle-pw" id="toggle-pw-icon"></i>
+
+                    <div class="form-group">
+                        <label for="login-password">Parol</label>
+                        <div class="input-icon-wrapper">
+                            <i class="fa-solid fa-lock"></i>
+                            <input type="password" id="login-password" placeholder="Parolingiz">
+                            <i class="fa-solid fa-eye-slash toggle-pw" id="toggle-pw-icon"></i>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="login-error-msg" id="login-error">
-                    <i class="fa-solid fa-triangle-exclamation"></i> Login yoki parol xato!
-                </div>
-                
-                <button type="submit" class="btn btn-primary btn-block btn-glow">
-                    <i class="fa-solid fa-arrow-right-to-bracket"></i> Tizimga Kirish
+
+                    <div class="login-error-msg" id="login-error">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Login yoki parol xato!
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i> Tizimga Kirish
+                    </button>
+                </form>
+
+                <button type="button" class="login-back-btn" data-login-back>
+                    <i class="fa-solid fa-arrow-left"></i> Orqaga
                 </button>
-            </form>
-            
-            <div class="login-hint">
-                <i class="fa-solid fa-circle-info"></i> Standart hisob: <code>admin</code> / <code>eco777</code>
+
+                <div class="login-hint">
+                    <i class="fa-solid fa-circle-info"></i> Standart hisob: <code>admin</code> / <code>eco777</code>
+                </div>
+            </div>
+
+            <!-- SELLER LOGIN: 4-digit PIN only -->
+            <div id="seller-login-view" style="display: none;">
+                <p class="login-desc">Sotuvchi sifatida kirish uchun 4 xonali PIN kodini kiriting.</p>
+
+                <form id="seller-pin-form" class="login-form" style="align-items: center;">
+                    <input type="password" id="seller-pin-input" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off"
+                        style="width: 180px; padding: 0.9rem; border-radius: 14px; background: var(--bg-dark-input); border: 2px solid var(--border-color); color: var(--primary); font-weight: 800; font-size: 2rem; letter-spacing: 14px; text-align: center;">
+
+                    <div class="login-error-msg" id="seller-pin-error" style="display: none; justify-content: center;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> PIN kod xato!
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block btn-glow">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i> Kirish
+                    </button>
+                </form>
+
+                <button type="button" class="login-back-btn" data-login-back>
+                    <i class="fa-solid fa-arrow-left"></i> Orqaga
+                </button>
             </div>
         </div>
     </div>
@@ -131,13 +187,13 @@
                         </div>
 
                         <!-- Supplier Filter Bar -->
-                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">TA'MINOTCHI:</div>
+                        <div class="filter-label" style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">TA'MINOTCHI:</div>
                         <div class="filter-controls" id="pos-suppliers-filter" style="margin-bottom: 0.8rem; padding: 0.3rem;">
                             <!-- Dynamically loaded -->
                         </div>
 
                         <!-- Category Filters tabs inside POS -->
-                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">KIYIM TURI:</div>
+                        <div class="filter-label" style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.4rem; letter-spacing: 0.5px;">KIYIM TURI:</div>
                         <div class="filter-controls" id="pos-categories-filter" style="margin-bottom: 1.5rem; padding: 0.3rem;">
                             <!-- Dynamically loaded -->
                         </div>
@@ -219,6 +275,28 @@
                                 <div style="display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 800;">
                                     <span>Jami To'lov:</span>
                                     <strong class="highlight-text" id="pos-final-total" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
+                                </div>
+                            </div>
+
+                            <!-- To'lov / Qarz (nasiya) bloki -->
+                            <div class="payment-block" id="pos-payment-block">
+                                <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+                                    <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-secondary);">Olingan summa (UZS):</label>
+                                    <input type="number" id="pos-received" placeholder="0" style="width: 130px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border-radius: 8px; text-align: right;" min="0">
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.95rem; font-weight: 800;">
+                                    <span style="color: var(--text-secondary);">Qolgan qarz:</span>
+                                    <strong id="pos-remaining-debt" style="color: var(--text-muted);">0 UZS</strong>
+                                </div>
+
+                                <!-- Qarzdor ma'lumotlari (qarz bo'lsa ochiladi) -->
+                                <div id="pos-debtor-fields" class="debtor-fields" style="display: none;">
+                                    <div class="debtor-fields-head"><i class="fa-solid fa-user-clock"></i> Qarzdor ma'lumotlari</div>
+                                    <input type="text" id="pos-debtor-name" class="debtor-input" placeholder="Qarzdor ismi *">
+                                    <input type="tel" id="pos-debtor-phone" class="debtor-input" placeholder="Telefon raqami *">
+                                    <input type="text" id="pos-debtor-tg" class="debtor-input" placeholder="Telegram useri (masalan: @user)">
+                                    <label class="debtor-date-label">Qarz qaytarish sanasi *</label>
+                                    <input type="date" id="pos-debtor-date" class="debtor-input">
                                 </div>
                             </div>
 
@@ -699,8 +777,8 @@
                         </div>
                         <div class="settings-field">
                             <label for="settings-bot-token"><i class="fa-solid fa-robot"></i> Telegram Bot Token</label>
-                            <input type="text" id="settings-bot-token" class="settings-input settings-mono" value="8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE" required>
-                            <small>Hisobot cheklarini yuboruvchi bot tokeni.</small>
+                            <input type="text" id="settings-bot-token" class="settings-input settings-mono" value="" placeholder="🔒 Serverda yashirin (Vercel ENV: BOT_TOKEN)" readonly>
+                            <small>🔒 Token endi serverda saqlanadi — bu yerda ko'rsatilmaydi va kerak emas.</small>
                         </div>
                         <div class="settings-field">
                             <label for="settings-chat-id"><i class="fa-solid fa-paper-plane"></i> Hisobot Chat ID</label>
@@ -794,6 +872,72 @@
                                 </thead>
                                 <tbody id="settings-categories-table-body"></tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TIZIM DIAGNOSTIKASI & XAVFSIZLIK TEKSHIRUVI -->
+                <div class="settings-accordion settings-block diag-block" id="diagnostics-block">
+                    <div class="settings-acc-head">
+                        <div class="settings-card-ic diag-ic"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Tizim Diagnostikasi & Xavfsizlik</h3>
+                            <p>Har bir bo'lim, tugma va ma'lumot oqimini avtomatik tekshiradi, bug'larni topadi.</p>
+                        </div>
+                        <label class="diag-switch" title="Xavfsizlik tekshiruvini yoqish">
+                            <input type="checkbox" id="diag-toggle">
+                            <span class="diag-slider"></span>
+                        </label>
+                        <i class="fa-solid fa-chevron-down settings-acc-chevron"></i>
+                    </div>
+                    <div class="settings-acc-body">
+                        <div class="diag-panel">
+                            <div class="diag-actions">
+                                <button type="button" class="diag-run-btn" id="diag-run-btn"><i class="fa-solid fa-play"></i> Tekshiruvni Boshlash</button>
+                                <button type="button" class="diag-fix-btn" id="diag-fix-btn" disabled><i class="fa-solid fa-wrench"></i> Muammolarni Tuzatish</button>
+                                <button type="button" class="diag-report-btn" id="diag-report-btn" disabled><i class="fa-solid fa-file-arrow-down"></i> Hisobotni Yuklab Olish</button>
+                            </div>
+                            <div class="diag-progress" id="diag-progress" style="display:none;"><div class="diag-progress-bar" id="diag-progress-bar"></div></div>
+                            <div class="diag-summary" id="diag-summary" style="display:none;">
+                                <div class="diag-stat diag-stat-pass"><span id="diag-pass-count">0</span><small>O'tdi</small></div>
+                                <div class="diag-stat diag-stat-warn"><span id="diag-warn-count">0</span><small>Ogohlantirish</small></div>
+                                <div class="diag-stat diag-stat-fail"><span id="diag-fail-count">0</span><small>Xato</small></div>
+                                <div class="diag-score" id="diag-score">—</div>
+                            </div>
+                            <div class="diag-results" id="diag-results">
+                                <div class="diag-hint"><i class="fa-solid fa-circle-info"></i> Yuqoridagi tugmani yoqing yoki "Tekshiruvni Boshlash"ni bosing. Tizim har bir bo'lim, tugma, modal, funksiya, ma'lumot oqimi, bulut ulanishi, hisob-kitob to'g'riligi va xavfsizlikni tekshiradi.</div>
+                            </div>
+
+                            <!-- BIZNES OQIMI SIMULYATSIYASI -->
+                            <div class="sim-panel">
+                                <div class="sim-head"><i class="fa-solid fa-flask-vial"></i> Biznes Oqimi Simulyatsiyasi <span class="sim-safe"><i class="fa-solid fa-lock"></i> xavfsiz — haqiqiy ma'lumotga tegmaydi</span></div>
+                                <div class="diag-hint" style="margin-bottom:0.9rem;"><i class="fa-solid fa-robot"></i> Tizim o'zi sinov mahsulotini <b>kirim qiladi</b>, <b>optimga</b> va <b>donaga sotadi</b>, <b>qarzga beradi</b>, <b>ta'minotchidan nasiyaga yuk oladi</b> va <b>to'lov qiladi</b> — har bosqich to'g'ri hisoblanishini alohida sandboxда tekshiradi.</div>
+                                <button type="button" class="diag-run-btn" id="sim-run-btn" style="background:linear-gradient(135deg,#0891b2,#10b981)"><i class="fa-solid fa-play"></i> Simulyatsiyani Boshlash</button>
+                                <div class="sim-results" id="sim-results"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MA'LUMOT ZAXIRASI (BACKUP / RESTORE) -->
+                <div class="settings-accordion settings-block" id="backup-block">
+                    <div class="settings-acc-head">
+                        <div class="settings-card-ic cyan"><i class="fa-solid fa-database"></i></div>
+                        <div class="settings-card-titles">
+                            <h3>Ma'lumot Zaxirasi (Backup)</h3>
+                            <p>Barcha ma'lumotni faylga saqlang yoki zaxiradan tiklang — falokat oldini oladi.</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-down settings-acc-chevron"></i>
+                    </div>
+                    <div class="settings-acc-body">
+                        <div class="diag-panel">
+                            <div class="diag-hint" style="margin-bottom:1rem;"><i class="fa-solid fa-shield-heart"></i> Tavsiya: har kuni ish oxirida "Zaxira Yuklab Olish" bosib, faylni saqlab boring. Nimadir o'chsa, "Zaxiradan Tiklash" bilan qaytarasiz.</div>
+                            <div class="diag-actions">
+                                <button type="button" class="diag-run-btn" id="backup-export-btn" style="background:linear-gradient(135deg,#0891b2,#06b6d4)"><i class="fa-solid fa-download"></i> Zaxira Yuklab Olish</button>
+                                <button type="button" class="diag-report-btn" id="backup-import-btn"><i class="fa-solid fa-upload"></i> Zaxiradan Tiklash</button>
+                                <input type="file" id="backup-import-file" accept="application/json,.json" style="display:none">
+                            </div>
+                            <div id="backup-status" class="diag-hint" style="display:none;margin-top:1rem;"></div>
                         </div>
                     </div>
                 </div>
@@ -1086,6 +1230,19 @@
                         <div style="display: flex; justify-content: space-between; font-size: 1.05rem; font-weight: 800; color: var(--text-primary);">
                             <span>JAMI TO'LOV:</span>
                             <strong style="color: var(--primary);" id="receipt-modal-total">260,000 UZS</strong>
+                        </div>
+                        <!-- Olingan summa / qarz (qarz bo'lsa ko'rinadi) -->
+                        <div id="receipt-modal-debt-block" style="display: none; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
+                            <div style="border-top: 1px dashed var(--border-color); margin: 0.2rem 0;"></div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Olingan summa:</span>
+                                <span id="receipt-modal-received" style="color: #10b981; font-weight: 700;">0 UZS</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-weight: 800;">
+                                <span style="color: #f59e0b;">Qolgan qarz:</span>
+                                <span id="receipt-modal-debt" style="color: #f59e0b;">0 UZS</span>
+                            </div>
+                            <div id="receipt-modal-debtor" style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.5; margin-top: 0.2rem; background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.18); border-radius: 8px; padding: 0.5rem 0.6rem;"></div>
                         </div>
                     </div>
 
@@ -1523,6 +1680,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- Core App Logic -->
-    <script src="app.js?v=4.7"></script>
+    <script src="app.js?v=6.5"></script>
+    <!-- PWA: Service Worker'ni ro'yxatdan o'tkazish (offline kesh) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(function (reg) { console.log('✅ Service Worker faol (offline tayyor):', reg.scope); })
+                    .catch(function (err) { console.warn('Service Worker ro\'yxatdan o\'tmadi:', err); });
+            });
+        }
+    </script>
 </body>
 </html>

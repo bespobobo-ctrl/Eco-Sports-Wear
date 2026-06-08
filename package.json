@@ -1,0 +1,15 @@
+{
+  "name": "eco-sports-menswear",
+  "version": "1.0.0",
+  "description": "Eco Sports Kassa & CRM Tizimi",
+  "scripts": {
+    "dev": "npx -y serve",
+    "deploy": "npx vercel --prod"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}

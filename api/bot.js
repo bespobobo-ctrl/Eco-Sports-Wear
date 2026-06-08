@@ -2,8 +2,8 @@
 //   TELEGRAM BOT SERVERLESS FUNCTION - VERCEL BACKEND API
 // ========================================================================
 
-const BOT_TOKEN = "8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE";
-const WEBAPP_URL = "https://eco-sports-wear.vercel.app";
+const BOT_TOKEN = process.env.BOT_TOKEN || "";
+const WEBAPP_URL = process.env.WEBAPP_URL || "https://eco-sports-wear.vercel.app";
 
 module.exports = async (req, res) => {
     // Check if it is a POST request from Telegram Webhook

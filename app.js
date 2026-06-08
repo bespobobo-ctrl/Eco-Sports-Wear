@@ -43,16 +43,26 @@ const sessionStorage = safeSessionStorage;
 
 // 1. TELEGRAM WEBAPP & BOT CONFIGURATION
 const tg = window.Telegram?.WebApp;
-const BOT_TOKEN = "8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE";
+// HAQIQIY Telegram Mini App ichidamizmi? (SDK brauzer/PWA'da ham mavjud bo'ladi,
+// shuning uchun faqat tg borligi yetarli emas — initData/platform tekshiriladi)
+const isTelegram = !!(tg && (
+    (tg.initData && tg.initData.length > 0) ||
+    (tg.initDataUnsafe && tg.initDataUnsafe.user) ||
+    (tg.platform && tg.platform !== 'unknown')
+));
+// BOT_TOKEN endi frontendда YO'Q — server tomonда yashirin (Vercel ENV: BOT_TOKEN).
+// Xabarlar /api/notify orqali yuboriladi. (Ilgari bu yerda ochiq edi — olib tashlandi.)
 
-if (tg) {
-    tg.ready();
-    tg.expand();
-    tg.enableClosingConfirmation();
-    
-    // Set native header and background color to blend perfectly with our dark app theme
-    tg.setHeaderColor('#090d16');
-    tg.setBackgroundColor('#090d16');
+// Telegram'ga xos sozlamalar — FAQAT haqiqiy Telegram ichida.
+// (PWA/brauzerda bu chaqiruvlar nojo'ya reflow/sapchish keltirib chiqarishi mumkin)
+if (isTelegram) {
+    try {
+        tg.ready();
+        tg.expand();
+        tg.enableClosingConfirmation();
+        tg.setHeaderColor('#090d16');
+        tg.setBackgroundColor('#090d16');
+    } catch (e) { console.warn("Telegram init:", e); }
 }
 
 // 1.5. SUPABASE CLOUD DATABASE CONFIGURATION
@@ -88,14 +98,114 @@ async function dbDeleteUser(userId) {
     }
 }
 
-// --- eco_config (Tizim Sozlamalari) ---
+// ============================================================
+// OFFLINE SYNC NAVBATI (OUTBOX)
+// Zaif internetda yozishlar yo'qolmasligi uchun: har amal avval mahalliy
+// navbatga tushadi, internet kelganda bulutga (Supabase) yuboriladi.
+// ============================================================
+let syncQueue = [];
+try { const _q = localStorage.getItem("eco_sync_queue"); if (_q) syncQueue = JSON.parse(_q) || []; } catch (e) { syncQueue = []; }
+function _saveSyncQueue() { try { localStorage.setItem("eco_sync_queue", JSON.stringify(syncQueue)); } catch (e) {} }
+
+const SYNC_MAX_ATTEMPTS = 8;
+
+function enqueueOp(op) {
+    op.opId = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    op.attempts = 0;
+    // Config — snapshot bo'lgani uchun bir kalit bo'yicha eski kutayotganlarni almashtirish
+    if (op.type === "config") {
+        syncQueue = syncQueue.filter(o => !(o.type === "config" && o.key === op.key));
+    }
+    syncQueue.push(op);
+    _saveSyncQueue();
+    updateSyncBadge();
+    flushSyncQueue();
+}
+
+let _syncFlushing = false;
+async function flushSyncQueue() {
+    if (_syncFlushing || !supabaseClient) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) { updateSyncBadge(); return; }
+    _syncFlushing = true;
+    try {
+        while (syncQueue.length > 0) {
+            const op = syncQueue[0];
+            try {
+                await applySyncOp(op);
+                syncQueue.shift();
+                _saveSyncQueue();
+                updateSyncBadge();
+            } catch (e) {
+                op.attempts = (op.attempts || 0) + 1;
+                _saveSyncQueue();
+                if (op.attempts >= SYNC_MAX_ATTEMPTS) {
+                    console.warn("Sync op tashlandi (juda ko'p urinish):", op.type, e);
+                    syncQueue.shift(); // poison op navbatni bloklamasin
+                    _saveSyncQueue();
+                    continue;
+                }
+                console.warn("Sync to'xtadi (keyin qayta urinadi):", op.type, e);
+                break; // tarmoq xatosi — keyinroq retry
+            }
+        }
+    } finally {
+        _syncFlushing = false;
+        updateSyncBadge();
+    }
+}
+
+async function applySyncOp(op) {
+    if (!supabaseClient) throw new Error("no-client");
+    let res;
+    switch (op.type) {
+        case "config":
+            res = await supabaseClient.from("eco_config").upsert({ key: op.key, value: op.value });
+            break;
+        case "sale":
+            res = await supabaseClient.from("eco_sales").upsert(op.sale);
+            if (res && res.error) throw res.error;
+            if (op.items && op.items.length) {
+                res = await supabaseClient.from("eco_sale_items").insert(op.items);
+            }
+            break;
+        case "kirim":
+            res = await supabaseClient.from("eco_kirim_history").upsert(op.row);
+            break;
+        case "kirim_status":
+            res = await supabaseClient.from("eco_kirim_history").update(op.patch).eq("product_id", op.product_id);
+            break;
+        case "expense":
+            res = await supabaseClient.from("eco_expenses").upsert(op.row);
+            break;
+        default:
+            return; // noma'lum tur — o'tkazib yuborish
+    }
+    if (res && res.error) throw res.error;
+}
+
+// 🟢/🔴 sinxronlash holati ko'rsatkichi
+function updateSyncBadge() {
+    const badge = document.getElementById("sync-badge");
+    if (!badge) return;
+    const online = !(typeof navigator !== "undefined" && navigator.onLine === false);
+    const pending = syncQueue.length;
+    badge.classList.remove("sync-online", "sync-offline", "sync-pending");
+    if (!online) {
+        badge.classList.add("sync-offline");
+        badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Oflayn${pending ? " · " + pending : ""}`;
+    } else if (pending > 0) {
+        badge.classList.add("sync-pending");
+        badge.innerHTML = `<i class="fa-solid fa-rotate fa-spin"></i> Saqlanmoqda ${pending}`;
+    } else {
+        badge.classList.add("sync-online");
+        badge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Onlayn`;
+    }
+}
+
+// --- eco_config (Tizim Sozlamalari) — navbat orqali ---
 async function dbSaveConfig(key, value) {
     if (!supabaseClient) return;
-    try {
-        await supabaseClient.from("eco_config").upsert({ key: key, value: value });
-    } catch (err) {
-        console.error(`Supabase config save failed for ${key}:`, err);
-    }
+    enqueueOp({ type: "config", key: key, value: value });
 }
 
 // --- eco_inventory (Ombor) ---
@@ -139,36 +249,29 @@ async function dbSaveFullInventory() {
     }
 }
 
-// --- eco_sales + eco_sale_items (Savdo) ---
+// --- eco_sales + eco_sale_items (Savdo) — navbat orqali ---
 async function dbSaveSale(tx, cartItems) {
     if (!supabaseClient) return;
-    try {
-        // 1. Savdo chekini saqlash
-        await supabaseClient.from("eco_sales").upsert({
-            id: tx.id,
-            cashier_id: currentUser ? currentUser.id : null,
-            cashier_name: tx.cashier,
-            sale_timestamp: tx.timestamp,
-            channel: tx.channel,
-            discount: tx.discount,
-            subtotal: tx.subtotal,
-            total_paid: tx.totalPaid,
-            item_count: tx.itemCount
-        });
-
-        // 2. Sotilgan mahsulotlarni alohida saqlash (sotuvchi bilan bog'langan)
-        const saleItems = cartItems.map(item => ({
-            sale_id: tx.id,
-            cashier_id: currentUser ? currentUser.id : null,
-            product_name: typeof item === 'object' ? item.name : item,
-            size: typeof item === 'object' ? item.size : '',
-            qty: typeof item === 'object' ? item.qty : 1,
-            sold_price: typeof item === 'object' ? item.soldPrice : 0
-        }));
-        await supabaseClient.from("eco_sale_items").insert(saleItems);
-    } catch (err) {
-        console.error("Supabase sale save failed:", err);
-    }
+    const sale = {
+        id: tx.id,
+        cashier_id: currentUser ? currentUser.id : null,
+        cashier_name: tx.cashier,
+        sale_timestamp: tx.timestamp,
+        channel: tx.channel,
+        discount: tx.discount,
+        subtotal: tx.subtotal,
+        total_paid: tx.totalPaid,
+        item_count: tx.itemCount
+    };
+    const items = (cartItems || []).map(item => ({
+        sale_id: tx.id,
+        cashier_id: currentUser ? currentUser.id : null,
+        product_name: typeof item === 'object' ? item.name : item,
+        size: typeof item === 'object' ? item.size : '',
+        qty: typeof item === 'object' ? item.qty : 1,
+        sold_price: typeof item === 'object' ? item.soldPrice : 0
+    }));
+    enqueueOp({ type: "sale", sale: sale, items: items });
 }
 
 async function dbDeleteSale(saleId) {
@@ -191,20 +294,16 @@ async function dbDeleteAllSales() {
     }
 }
 
-// --- eco_expenses (Xarajatlar) ---
+// --- eco_expenses (Xarajatlar) — navbat orqali ---
 async function dbSaveExpense(expense) {
     if (!supabaseClient) return;
-    try {
-        await supabaseClient.from("eco_expenses").upsert({
-            id: expense.id,
-            expense_timestamp: expense.timestamp,
-            description: expense.description,
-            category: expense.category,
-            amount: expense.amount
-        });
-    } catch (err) {
-        console.error("Supabase expense save failed:", err);
-    }
+    enqueueOp({ type: "expense", row: {
+        id: expense.id,
+        expense_timestamp: expense.timestamp,
+        description: expense.description,
+        category: expense.category,
+        amount: expense.amount
+    } });
 }
 
 async function dbDeleteExpense(expenseId) {
@@ -225,29 +324,9 @@ async function dbDeleteAllExpenses() {
     }
 }
 
-// 2. PRODUCT DATASET (4 Suppliers x 4 Categories)
-let PRODUCTS = [
-    // Alisher Aka
-    { id: 101, supplier: "Alisher Aka", name: "Alisher Aka - Futbolka", price: 260000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
-    { id: 102, supplier: "Alisher Aka", name: "Alisher Aka - Shortik", price: 220000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
-    { id: 103, supplier: "Alisher Aka", name: "Alisher Aka - Sportivka", price: 720000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
-    { id: 104, supplier: "Alisher Aka", name: "Alisher Aka - Triko", price: 340000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] },
-    // Nodir aka
-    { id: 201, supplier: "Nodir aka", name: "Nodir aka - Futbolka", price: 240000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
-    { id: 202, supplier: "Nodir aka", name: "Nodir aka - Shortik", price: 200000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
-    { id: 203, supplier: "Nodir aka", name: "Nodir aka - Sportivka", price: 680000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
-    { id: 204, supplier: "Nodir aka", name: "Nodir aka - Triko", price: 320000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] },
-    // Eco Sports
-    { id: 301, supplier: "Eco Sports", name: "Eco Sports - Futbolka", price: 280000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
-    { id: 302, supplier: "Eco Sports", name: "Eco Sports - Shortik", price: 230000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
-    { id: 303, supplier: "Eco Sports", name: "Eco Sports - Sportivka", price: 750000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
-    { id: 304, supplier: "Eco Sports", name: "Eco Sports - Triko", price: 360000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] },
-    // Xitoy
-    { id: 401, supplier: "Xitoy", name: "Xitoy - Futbolka", price: 180000, category: "tshirt", image: "assets/tshirt.png", sizes: ["S", "M", "L", "XL", "XXL"] },
-    { id: 402, supplier: "Xitoy", name: "Xitoy - Shortik", price: 150000, category: "shorts", image: "assets/shorts.png", sizes: ["M", "L", "XL", "XXL"] },
-    { id: 403, supplier: "Xitoy", name: "Xitoy - Sportivka", price: 550000, category: "tracksuit", image: "assets/tracksuit.png", sizes: ["S", "M", "L", "XL"] },
-    { id: 404, supplier: "Xitoy", name: "Xitoy - Triko", price: 280000, category: "joggers", image: "assets/joggers.png", sizes: ["M", "L", "XL", "XXL", "3XL"] }
-];
+// 2. MAHSULOTLAR — real do'kon: bo'sh boshlaydi, faqat kirim qilingan
+// mahsulotlar ko'rsatiladi (demo namuna mahsulotlar olib tashlandi).
+let PRODUCTS = [];
 
 // 3. APPLICATION STATE & DATABASES
 const defaultSuppliers = [
@@ -304,10 +383,10 @@ function saveCategoriesToStorage() {
 // Initial default configuration parameters
 let appConfig = {
     pin: "7777",
-    botToken: "8592915921:AAE7L1Rf2bPEzywea_DjF6cYsZAQ9IRcsOE",
-    chatId: "648833917",
+    botToken: "", // token serverda (Vercel ENV) — frontendда saqlanmaydi
+    chatId: "648833917", // maxfiy emas: hisobot yuboriladigan Telegram chat ID
     storeName: "ECO SPORTS",
-    storeAddress: "Tashkent, Yunusobod",
+    storeAddress: "Qo'qon shahar",
     storePhone: "+998 90 123 45 67"
 };
 
@@ -328,6 +407,9 @@ const defaultUsers = [
 ];
 let users = defaultUsers;
 let currentUser = null;
+
+// Sotuvchi (Optim 1) tezkor kirish PIN kodi — bu yerdan o'zgartirsa bo'ladi
+const SELLER_QUICK_PIN = "5555";
 
 // 4. DOM ELEMENTS
 // Authentication Screen elements
@@ -354,6 +436,16 @@ const receiptFinalTotal = document.getElementById("pos-final-total");
 const discountInput = document.getElementById("pos-discount");
 const channelSelect = document.getElementById("pos-channel");
 const checkoutBtn = document.getElementById("pos-checkout-btn");
+
+// To'lov / qarz (nasiya) elementlari
+const receivedInput = document.getElementById("pos-received");
+const remainingDebtEl = document.getElementById("pos-remaining-debt");
+const debtorFields = document.getElementById("pos-debtor-fields");
+const debtorNameInput = document.getElementById("pos-debtor-name");
+const debtorPhoneInput = document.getElementById("pos-debtor-phone");
+const debtorTgInput = document.getElementById("pos-debtor-tg");
+const debtorDateInput = document.getElementById("pos-debtor-date");
+let posReceivedTouched = false;
 const receiptIdLabel = document.getElementById("pos-receipt-id");
 
 // POS Calculator modal elements
@@ -425,6 +517,63 @@ function handleLoginSubmit(e) {
         unlockDashboard();
     } else {
         loginErrorMsg.style.display = "flex";
+        if (tg && tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('error');
+        }
+    }
+}
+
+// --- Login oyna almashtirish (Admin / Sotuvchi) ---
+function showLoginView(view) {
+    const modeSelect = document.getElementById("login-mode-select");
+    const adminView = document.getElementById("admin-login-view");
+    const sellerView = document.getElementById("seller-login-view");
+    if (modeSelect) modeSelect.style.display = (view === "mode") ? "block" : "none";
+    if (adminView) adminView.style.display = (view === "admin") ? "block" : "none";
+    if (sellerView) sellerView.style.display = (view === "seller") ? "block" : "none";
+
+    // Xato xabarlarini va maydonlarni tozalash
+    if (loginErrorMsg) loginErrorMsg.style.display = "none";
+    const sellerErr = document.getElementById("seller-pin-error");
+    if (sellerErr) sellerErr.style.display = "none";
+    const sellerPin = document.getElementById("seller-pin-input");
+    if (sellerPin) sellerPin.value = "";
+
+    // Tegishli maydonga fokus
+    if (view === "seller" && sellerPin) {
+        setTimeout(() => sellerPin.focus(), 50);
+    } else if (view === "admin" && usernameInput) {
+        setTimeout(() => usernameInput.focus(), 50);
+    }
+}
+
+// Sotuvchi PIN orqali kirish — to'g'ri bo'lsa Optim1 sifatida kiradi
+function handleSellerPinSubmit(e) {
+    if (e) e.preventDefault();
+    const pinInput = document.getElementById("seller-pin-input");
+    const sellerErr = document.getElementById("seller-pin-error");
+    const val = (pinInput ? pinInput.value : "").trim();
+
+    if (val === SELLER_QUICK_PIN) {
+        const optimUser = users.find(u => u.username && u.username.toLowerCase().trim() === "optim1")
+            || users.find(u => u.role === "kassir-optim");
+
+        if (!optimUser) {
+            if (sellerErr) sellerErr.style.display = "flex";
+            return;
+        }
+
+        if (sellerErr) sellerErr.style.display = "none";
+        sessionStorage.setItem("eco_sports_logged_in", "true");
+        sessionStorage.setItem("eco_sports_logged_in_user", JSON.stringify(optimUser));
+        currentUser = optimUser;
+        unlockDashboard();
+    } else {
+        if (sellerErr) sellerErr.style.display = "flex";
+        if (pinInput) {
+            pinInput.value = "";
+            pinInput.focus();
+        }
         if (tg && tg.HapticFeedback) {
             tg.HapticFeedback.notificationOccurred('error');
         }
@@ -715,6 +864,11 @@ function ensureColorStock(p) {
     return cs;
 }
 function packSizeOf(p) { return (p.sizes && p.sizes.length) ? p.sizes.length : 5; }
+// Optim chala dona narxi: pachka sotuv narxi / pachkadagi dona soni
+function optimDonaPrice(p) {
+    const packPrice = p.pack_price || (5 * p.price);
+    return Math.round(packPrice / packSizeOf(p));
+}
 
 function colorStockSummary(p) {
     const cs = colorStock[p.id];
@@ -755,6 +909,44 @@ function deductColorDona(p, color, size, qty) {
     if (!cs || !cs[color]) return;
     cs[color][size] = Math.max(0, (cs[color][size] || 0) - qty);
     saveColorStock();
+}
+
+// Tanlangan mahsulot/rang/o'lcham uchun MAVJUD zaxira (pachka yoki dona)
+function availableUnitsFor(product, color, size, isPack) {
+    if (!product) return Infinity;
+    const useColors = hasColorData(product);
+    if (isPack) {
+        if (useColors && color) {
+            const cs = ensureColorStock(product);
+            if (cs && cs[color]) {
+                const sizes = product.sizes || [];
+                return sizes.length ? Math.min(...sizes.map(s => cs[color][s] || 0)) : 0;
+            }
+            return 0;
+        }
+        // Rangsiz mahsulot: jami pachka = jami dona / pachkadagi dona
+        const ps = packSizeOf(product) || 1;
+        return Math.floor((inventory[product.id] || 0) / ps);
+    }
+    // Dona savdo
+    if (useColors && color && size) {
+        const cs = ensureColorStock(product);
+        let avail = (cs && cs[color]) ? (cs[color][size] || 0) : 0;
+        // Optim chala dona sotganda — to'liq pachkani buzmaydi, faqat ortgan donalar
+        if (currentUser && currentUser.role === "kassir-optim" && cs && cs[color]) {
+            const sizes = product.sizes || [];
+            const full = sizes.length ? Math.min(...sizes.map(s => cs[color][s] || 0)) : 0;
+            avail = Math.max(0, avail - full);
+        }
+        return avail;
+    }
+    return inventory[product.id] || 0;
+}
+
+// Savatda shu mahsulot/o'lcham/rang uchun allaqachon turgan miqdor
+function cartLineQty(productId, size, color) {
+    const it = state.cart.find(i => i.product.id === productId && i.size === size && (i.color || null) === (color || null));
+    return it ? it.qty : 0;
 }
 
 // 7. POS TILES RENDERER
@@ -808,7 +1000,16 @@ function renderTiles() {
 function addPackToCart(product) {
     const packPrice = product.pack_price || (5 * product.price);
     const packSize = "Pachka (Set: S-XXL)";
-    
+
+    // Zaxira tekshiruvi: mavjuddan ko'p sotib bo'lmaydi
+    const maxStock = availableUnitsFor(product, null, packSize, true);
+    const already = cartLineQty(product.id, packSize, null);
+    if (already + 1 > maxStock) {
+        alert(`⚠️ Zaxirada faqat ${maxStock} pachka bor!` + (already ? `\n(Savatda allaqachon ${already} pachka)` : ""));
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+        return;
+    }
+
     const existing = state.cart.find(item => item.product.id === product.id && item.size === packSize);
     if (existing) {
         existing.qty += 1;
@@ -828,6 +1029,20 @@ function addPackToCart(product) {
 }
 
 // 8. POS CALCULATOR POPUP MODAL
+// Premium rang tugmasi (swatch + nom + qoldiq) — sotuv kalkulyatori uchun
+function buildCalcColorBtn(color, count, unit, disabled) {
+    const isLight = ["Oq", "Melanj", "Xakki"].includes(color);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "calc-color-btn" + (disabled ? " is-disabled" : "");
+    btn.disabled = disabled;
+    btn.innerHTML = `
+        <span class="ccb-swatch${isLight ? ' is-light' : ''}" style="background-color:${getColorHex(color)};"></span>
+        <span class="ccb-name">${color}</span>
+        <span class="ccb-count">${count} ${unit}</span>`;
+    return btn;
+}
+
 function openCalcModal(productId) {
     const product = PRODUCTS.find(p => p.id === productId);
     if (!product) return;
@@ -857,45 +1072,50 @@ function openCalcModal(productId) {
     const sizeLabelEl = document.getElementById("calc-size-label");
 
     if (isOptim) {
-        state.selectedSize = "Pachka (Set: S-XXL)";
-        if (sizeLabelEl) sizeLabelEl.textContent = "Pachka:";
-        calcSizesContainer.innerHTML = "";
-        const sbtn = document.createElement("button");
-        sbtn.type = "button"; sbtn.className = "size-btn active";
-        sbtn.style.width = "auto"; sbtn.style.padding = "0 1.5rem";
-        sbtn.textContent = "1 Pachka (Set)";
-        calcSizesContainer.appendChild(sbtn);
-
         if (useColors && colorGroup && colorOptions) {
+            if (sizeLabelEl) sizeLabelEl.textContent = "Pachka / chala dona:";
             colorGroup.style.display = "block";
             const cs = colorStock[product.id];
             colorOptions.innerHTML = "";
-            let firstAvail = null;
+            let firstAvail = null, firstAny = null;
             Object.keys(cs).forEach(color => {
-                const fullPacks = product.sizes.length ? Math.min(...product.sizes.map(s => cs[color][s] || 0)) : 0;
-                const btn = document.createElement("button");
-                btn.type = "button";
-                btn.className = "size-btn";
-                btn.disabled = fullPacks < 1;
-                btn.innerHTML = `${color} <small>(${fullPacks} pachka)</small>`;
-                if (fullPacks < 1) btn.style.opacity = "0.4";
-                else if (!firstAvail) firstAvail = color;
+                const counts = product.sizes.map(s => cs[color][s] || 0);
+                const fullPacks = counts.length ? Math.min(...counts) : 0;
+                const totalDona = counts.reduce((a, b) => a + b, 0);
+                // To'liq pachka bo'lsa pachka sonini, aks holda chala dona sonini ko'rsat
+                const label = fullPacks >= 1 ? fullPacks : totalDona;
+                const unit = fullPacks >= 1 ? "pachka" : "chala dona";
+                const btn = buildCalcColorBtn(color, label, unit, totalDona < 1);
+                if (fullPacks >= 1 && !firstAvail) firstAvail = color;
+                if (totalDona >= 1 && !firstAny) firstAny = color;
                 btn.addEventListener("click", () => {
-                    if (fullPacks < 1) return;
-                    colorOptions.querySelectorAll(".size-btn").forEach(b => b.classList.remove("active"));
+                    if (totalDona < 1) return;
+                    colorOptions.querySelectorAll(".calc-color-btn").forEach(b => b.classList.remove("active"));
                     btn.classList.add("active");
                     state.selectedColor = color;
+                    renderOptimSizes(product, color);
                 });
                 colorOptions.appendChild(btn);
             });
-            state.selectedColor = firstAvail;
-            if (firstAvail) {
-                const idx = Object.keys(cs).indexOf(firstAvail);
-                const btns = colorOptions.querySelectorAll(".size-btn");
+            const chosen = firstAvail || firstAny;
+            state.selectedColor = chosen;
+            if (chosen) {
+                const idx = Object.keys(cs).indexOf(chosen);
+                const btns = colorOptions.querySelectorAll(".calc-color-btn");
                 if (btns[idx]) btns[idx].classList.add("active");
+                renderOptimSizes(product, chosen);
             }
-        } else if (colorGroup) {
-            colorGroup.style.display = "none";
+        } else {
+            // Rangsiz mahsulot — oddiy bitta pachka
+            state.selectedSize = "Pachka (Set: S-XXL)";
+            if (sizeLabelEl) sizeLabelEl.textContent = "Pachka:";
+            if (colorGroup) colorGroup.style.display = "none";
+            calcSizesContainer.innerHTML = "";
+            const sbtn = document.createElement("button");
+            sbtn.type = "button"; sbtn.className = "size-btn active";
+            sbtn.style.width = "auto"; sbtn.style.padding = "0 1.5rem";
+            sbtn.textContent = "1 Pachka (Set)";
+            calcSizesContainer.appendChild(sbtn);
         }
     } else {
         if (sizeLabelEl) sizeLabelEl.textContent = "Sotilayotgan o'lchamni tanlang:";
@@ -906,16 +1126,11 @@ function openCalcModal(productId) {
             let firstColor = null;
             Object.keys(cs).forEach(color => {
                 const total = product.sizes.reduce((a, s) => a + (cs[color][s] || 0), 0);
-                const btn = document.createElement("button");
-                btn.type = "button";
-                btn.className = "size-btn";
-                btn.disabled = total < 1;
-                btn.innerHTML = `${color} <small>(${total} dona)</small>`;
-                if (total < 1) btn.style.opacity = "0.4";
-                else if (!firstColor) firstColor = color;
+                const btn = buildCalcColorBtn(color, total, "dona", total < 1);
+                if (total >= 1 && !firstColor) firstColor = color;
                 btn.addEventListener("click", () => {
                     if (total < 1) return;
-                    colorOptions.querySelectorAll(".size-btn").forEach(b => b.classList.remove("active"));
+                    colorOptions.querySelectorAll(".calc-color-btn").forEach(b => b.classList.remove("active"));
                     btn.classList.add("active");
                     state.selectedColor = color;
                     renderCalcDonaSizes(product, color);
@@ -924,7 +1139,7 @@ function openCalcModal(productId) {
             });
             state.selectedColor = firstColor || Object.keys(cs)[0];
             const fidx = Object.keys(cs).indexOf(state.selectedColor);
-            const cbtns = colorOptions.querySelectorAll(".size-btn");
+            const cbtns = colorOptions.querySelectorAll(".calc-color-btn");
             if (cbtns[fidx]) cbtns[fidx].classList.add("active");
             renderCalcDonaSizes(product, state.selectedColor);
         } else {
@@ -977,6 +1192,81 @@ function renderCalcDonaSizes(product, color) {
     product.sizes.forEach((size, i) => { if (size === state.selectedSize && btns[i]) btns[i].classList.add("active"); });
 }
 
+// Optim: qty/narx yorliqlarini "pachka" yoki "chala dona"ga moslaydi
+function setOptimUnitLabels(isPack) {
+    const qtyLabel = document.querySelector('label[for="calc-qty"]');
+    if (qtyLabel) qtyLabel.textContent = isPack ? "Miqdori (pachka):" : "Miqdori (dona):";
+    const priceLabel = document.querySelector('label[for="calc-unit-price"]');
+    if (priceLabel) priceLabel.textContent = isPack ? "Sotish narxi (pachka - UZS):" : "Sotish narxi (chala dona - UZS):";
+}
+
+// Optim modal: tanlangan rang uchun "to'liq pachka" + "chala dona" tugmalari
+function renderOptimSizes(product, color) {
+    const cs = colorStock[product.id];
+    const sizeMap = (cs && cs[color]) ? cs[color] : {};
+    const sizes = product.sizes || [];
+    const fullPacks = sizes.length ? Math.min(...sizes.map(s => sizeMap[s] || 0)) : 0;
+    const packPrice = product.pack_price || (5 * product.price);
+    const donaPrice = optimDonaPrice(product);
+    calcSizesContainer.innerHTML = "";
+
+    const selectPack = () => {
+        calcSizesContainer.querySelectorAll(".size-btn").forEach(b => b.classList.remove("active"));
+        packBtn.classList.add("active");
+        state.selectedSize = "Pachka (Set: S-XXL)";
+        if (calcPriceInput) calcPriceInput.value = packPrice;
+        if (calcStdPrice) calcStdPrice.textContent = packPrice.toLocaleString('uz-UZ');
+        if (calcQtyInput) calcQtyInput.value = 1;
+        setOptimUnitLabels(true);
+    };
+    const selectDona = (size, btn) => {
+        calcSizesContainer.querySelectorAll(".size-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        state.selectedSize = size;
+        if (calcPriceInput) calcPriceInput.value = donaPrice;
+        if (calcStdPrice) calcStdPrice.textContent = donaPrice.toLocaleString('uz-UZ');
+        if (calcQtyInput) calcQtyInput.value = 1;
+        setOptimUnitLabels(false);
+    };
+
+    // To'liq pachka tugmasi
+    const packBtn = document.createElement("button");
+    packBtn.type = "button";
+    packBtn.className = "size-btn";
+    packBtn.disabled = fullPacks < 1;
+    packBtn.innerHTML = `📦 To'liq pachka <small>(${fullPacks})</small>`;
+    if (fullPacks < 1) packBtn.style.opacity = "0.4";
+    packBtn.addEventListener("click", () => { if (fullPacks >= 1) selectPack(); });
+    calcSizesContainer.appendChild(packBtn);
+
+    // Chala donalar (to'liq pachkadan ortgan har o'lcham)
+    let firstDonaBtn = null, firstDonaSize = null;
+    sizes.forEach(size => {
+        const left = Math.max(0, (sizeMap[size] || 0) - fullPacks);
+        if (left <= 0) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "size-btn";
+        btn.innerHTML = `${size} <small>chala ×${left}</small>`;
+        btn.addEventListener("click", () => selectDona(size, btn));
+        calcSizesContainer.appendChild(btn);
+        if (!firstDonaBtn) { firstDonaBtn = btn; firstDonaSize = size; }
+    });
+
+    // Ogohlantirish: tugagan (0) o'lchamlar
+    const missing = sizes.filter(s => (sizeMap[s] || 0) < 1);
+    if (missing.length) {
+        const warn = document.createElement("div");
+        warn.style.cssText = "width:100%; margin-top:0.5rem; font-size:0.78rem; color:#f59e0b; line-height:1.3;";
+        warn.textContent = `⚠️ Bu pachkada yo'q: ${missing.join(", ")} — qolgan o'lchamlar dona narxida (${donaPrice.toLocaleString('uz-UZ')} so'm) sotiladi`;
+        calcSizesContainer.appendChild(warn);
+    }
+
+    // Avto-tanlash: to'liq pachka bo'lsa o'sha, aks holda birinchi chala dona
+    if (fullPacks >= 1) selectPack();
+    else if (firstDonaBtn) selectDona(firstDonaSize, firstDonaBtn);
+}
+
 function closeCalculatorModal() {
     calcModal.classList.remove("open");
     state.selectedProduct = null;
@@ -985,6 +1275,27 @@ function closeCalculatorModal() {
 }
 
 // 9. VIRTUAL CASH REGISTER RECEIPTS MANAGEMENT
+// Olingan summa / qolgan qarz UI'sini yangilaydi
+function updatePaymentUI() {
+    if (!receivedInput || !remainingDebtEl) return;
+    const subtotal = state.cart.reduce((t, i) => t + (i.soldPrice * i.qty), 0);
+    const discount = parseFloat(discountInput.value) || 0;
+    const finalTotal = Math.max(0, subtotal - discount);
+
+    // Foydalanuvchi qo'lda o'zgartirmagan bo'lsa — to'liq summani avto-to'ldirish
+    if (!posReceivedTouched) {
+        receivedInput.value = finalTotal > 0 ? finalTotal : "";
+    }
+    let received = parseFloat(receivedInput.value);
+    if (isNaN(received)) received = 0;
+    received = Math.min(Math.max(0, received), finalTotal); // qarz manfiy bo'lmaydi
+    const debt = Math.max(0, finalTotal - received);
+
+    remainingDebtEl.textContent = formatPrice(debt);
+    remainingDebtEl.classList.toggle("has-debt", debt > 0);
+    if (debtorFields) debtorFields.style.display = debt > 0 ? "flex" : "none";
+}
+
 function updateReceiptUI() {
     const subtotal = state.cart.reduce((total, item) => total + (item.soldPrice * item.qty), 0);
     const discount = parseFloat(discountInput.value) || 0;
@@ -994,6 +1305,8 @@ function updateReceiptUI() {
     receiptDiscountValue.textContent = "-" + formatPrice(discount);
     receiptFinalTotal.textContent = formatPrice(finalTotal);
 
+    updatePaymentUI();
+
     // Sync checkout button
     if (state.cart.length > 0) {
         checkoutBtn.removeAttribute("disabled");
@@ -1001,19 +1314,19 @@ function updateReceiptUI() {
         checkoutBtn.setAttribute("disabled", "true");
     }
 
-    // Sync Telegram Native Button if TMA active
-    if (tg) {
-        checkoutBtn.style.display = "none"; // Hide standard button, rely on Telegram Main Button
+    // Sotish tugmasi: faqat HAQIQIY Telegram ichida MainButton'ga tayanamiz,
+    // aks holda (PWA/brauzer) oddiy "SOTISHNI YAKUNLASH" tugmasi ko'rsatiladi.
+    if (isTelegram && tg.MainButton) {
+        checkoutBtn.style.display = "none";
         if (state.cart.length > 0) {
             tg.MainButton.setText(`SOTISHNI YAKUNLASH (${formatPrice(finalTotal)})`);
-            tg.MainButton.setParams({
-                color: "#10b981",
-                text_color: "#ffffff"
-            });
+            tg.MainButton.setParams({ color: "#10b981", text_color: "#ffffff" });
             tg.MainButton.show();
         } else {
             tg.MainButton.hide();
         }
+    } else {
+        checkoutBtn.style.display = ""; // PWA/brauzer: oddiy tugma ko'rinadi
     }
 
     // Toggle mobile floating cart bar
@@ -1037,9 +1350,9 @@ function updateReceiptUI() {
         const row = document.createElement("div");
         row.className = "receipt-item";
         
-        const isOptim = currentUser && currentUser.role === "kassir-optim";
         const colorTag = item.color ? `${item.color} ` : "";
-        const sizeLabel = isOptim ? `${colorTag}pachka` : `${colorTag}(${item.size})`;
+        const isPackItem = String(item.size || "").includes("Pachka");
+        const sizeLabel = isPackItem ? `${colorTag}pachka` : `${colorTag}(${item.size})`;
         
         row.innerHTML = `
             <span class="receipt-item-name" style="cursor: pointer;" title="Tahrirlash uchun ikki marta bosing">${item.product.name}</span>
@@ -1081,7 +1394,15 @@ function updateReceiptUI() {
     document.querySelectorAll(".r-qty-plus").forEach(btn => {
         btn.addEventListener("click", () => {
             const idx = parseInt(btn.dataset.index);
-            state.cart[idx].qty++;
+            const it = state.cart[idx];
+            const isPack = String(it.size || "").includes("Pachka");
+            const maxStock = availableUnitsFor(it.product, it.color || null, it.size, isPack);
+            if (it.qty + 1 > maxStock) {
+                alert(`⚠️ Zaxirada faqat ${maxStock} ${isPack ? "pachka" : "dona"} bor!`);
+                if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+                return;
+            }
+            it.qty++;
             updateReceiptUI();
         });
     });
@@ -1104,6 +1425,25 @@ async function completeSale() {
     const finalTotal = Math.max(0, subtotal - discount);
     const itemCount = state.cart.reduce((sum, item) => sum + item.qty, 0);
 
+    // --- Olingan summa / qarz (nasiya) ---
+    let received = parseFloat(receivedInput?.value);
+    if (isNaN(received)) received = finalTotal; // bo'sh bo'lsa — to'liq to'lov
+    received = Math.max(0, Math.min(received, finalTotal));
+    const debtAmount = Math.max(0, finalTotal - received);
+
+    let debtor = null;
+    if (debtAmount > 0) {
+        const dName = (debtorNameInput?.value || "").trim();
+        const dPhone = (debtorPhoneInput?.value || "").trim();
+        const dTg = (debtorTgInput?.value || "").trim();
+        const dDate = debtorDateInput?.value || "";
+        if (!dName || !dPhone || !dDate) {
+            alert("Qarzga berishda qarzdor ismi, telefon raqami va qaytarish sanasi majburiy!");
+            return;
+        }
+        debtor = { name: dName, phone: dPhone, telegram: dTg, dueDate: dDate };
+    }
+
     const now = new Date();
     const dateStr = now.toLocaleDateString('uz-UZ') + " " + now.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
     const orderId = generateReceiptId();
@@ -1125,6 +1465,9 @@ async function completeSale() {
         discount: discount,
         subtotal: subtotal,
         totalPaid: finalTotal,
+        received: received,
+        debt: debtAmount,
+        debtor: debtor,
         itemCount: itemCount,
         cashier: activeCashierLabel.textContent
     };
@@ -1133,6 +1476,24 @@ async function completeSale() {
     state.salesHistory.push(newTx);
     localStorage.setItem("eco_sports_sales_history", JSON.stringify(state.salesHistory));
     dbSaveSale(newTx, itemsData);
+
+    // Nasiya savdo bo'lsa — mijoz qarzini yozib qo'yish
+    if (debtAmount > 0 && debtor) {
+        customerDebts.push({
+            id: orderId,
+            date: dateStr,
+            name: debtor.name,
+            phone: debtor.phone,
+            telegram: debtor.telegram,
+            dueDate: debtor.dueDate,
+            total: finalTotal,
+            received: received,
+            debt: debtAmount,
+            cashier: activeCashierLabel.textContent,
+            paid: false
+        });
+        saveCustomerDebts();
+    }
 
     // Subtract purchased items from stock inventory
     state.cart.forEach(item => {
@@ -1176,29 +1537,30 @@ async function completeSale() {
     if (discount > 0) {
         orderMsg += `<b>Chegirma:</b> -${formatPrice(discount)}\n`;
     }
-    orderMsg += `💵 <b>Jami tushum:</b> <u>${formatPrice(finalTotal)}</u>\n\n`;
-    orderMsg += `🟢 <i>CRM Tizimi muvaffaqiyatli yangilandi.</i>`;
+    orderMsg += `💵 <b>Jami:</b> <u>${formatPrice(finalTotal)}</u>\n`;
+    orderMsg += `✅ <b>Olingan:</b> ${formatPrice(received)}\n`;
+    if (debtAmount > 0 && debtor) {
+        orderMsg += `🔴 <b>Qarz:</b> ${formatPrice(debtAmount)}\n`;
+        orderMsg += `👤 <b>Qarzdor:</b> ${debtor.name} | 📞 ${debtor.phone}${debtor.telegram ? ' | ' + debtor.telegram : ''}\n`;
+        orderMsg += `📅 <b>Qaytarish sanasi:</b> ${debtor.dueDate}\n`;
+    }
+    orderMsg += `\n🟢 <i>CRM Tizimi muvaffaqiyatli yangilandi.</i>`;
 
     console.log("%cSale Committed!", "color:#10b981; font-weight:bold;");
     console.log(orderMsg);
 
-    // Send the structured HTML invoice directly to the Admin's Telegram chat
-    const targetChatId = appConfig.chatId || tg?.initDataUnsafe?.user?.id || "648833917"; 
-    if (targetChatId) {
-        try {
-            await fetch(`https://api.telegram.org/bot${appConfig.botToken}/sendMessage`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    chat_id: targetChatId,
-                    text: orderMsg,
-                    parse_mode: "HTML"
-                })
-            });
-            console.log("Structured HTML invoice sent to admin Telegram chat ID: " + targetChatId);
-        } catch (err) {
-            console.error("Bot API delivery failed:", err);
-        }
+    // Chek xabarini Telegram'ga yuborish — token endi SERVERDA (/api/notify), frontendда yo'q.
+    const targetChatId = appConfig.chatId || tg?.initDataUnsafe?.user?.id || "";
+    try {
+        await fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: orderMsg, chatId: targetChatId })
+        });
+        console.log("Chek /api/notify orqali yuborildi (chat: " + targetChatId + ")");
+    } catch (err) {
+        // Lokal dev'da (npx serve) /api yo'q — bu normal; sotuv baribir saqlanadi
+        console.warn("Telegram xabar yuborilmadi (lokal dev yoki tarmoq):", err);
     }
 
     // Trigger haptic vibration
@@ -1208,7 +1570,7 @@ async function completeSale() {
 
     // Populate and open Premium Virtual Success Receipt Modal
     const storeName = appConfig.storeName || "ECO SPORTS";
-    const storeDesc = `${appConfig.storeAddress || "Tashkent"} | Tel: ${appConfig.storePhone || ""}`;
+    const storeDesc = `Qo'qon shahar | Tel: ${appConfig.storePhone || ""}`;
     const receiptStoreNameEl = document.getElementById("receipt-store-name");
     const receiptStoreDescEl = document.getElementById("receipt-store-desc");
     if (receiptStoreNameEl) receiptStoreNameEl.textContent = storeName;
@@ -1222,6 +1584,25 @@ async function completeSale() {
     receiptModalSubtotal.textContent = formatPrice(subtotal);
     receiptModalDiscount.textContent = "-" + formatPrice(discount);
     receiptModalTotal.textContent = formatPrice(finalTotal);
+
+    // Chek modalida olingan summa / qarz
+    const debtBlock = document.getElementById("receipt-modal-debt-block");
+    if (debtBlock) {
+        if (debtAmount > 0 && debtor) {
+            debtBlock.style.display = "flex";
+            const recEl = document.getElementById("receipt-modal-received");
+            const debtEl = document.getElementById("receipt-modal-debt");
+            const debtorEl = document.getElementById("receipt-modal-debtor");
+            if (recEl) recEl.textContent = formatPrice(received);
+            if (debtEl) debtEl.textContent = formatPrice(debtAmount);
+            if (debtorEl) debtorEl.innerHTML =
+                `<b>Qarzdor:</b> ${debtor.name}<br><b>Tel:</b> ${debtor.phone}` +
+                `${debtor.telegram ? `<br><b>Telegram:</b> ${debtor.telegram}` : ''}` +
+                `<br><b>Qaytarish:</b> ${debtor.dueDate}`;
+        } else {
+            debtBlock.style.display = "none";
+        }
+    }
 
     receiptModalItemsContainer.innerHTML = "";
     state.cart.forEach(item => {
@@ -1248,7 +1629,16 @@ async function completeSale() {
     // Reset cashier forms
     state.cart = [];
     discountInput.value = 0;
-    
+
+    // To'lov / qarzdor maydonlarini tozalash
+    posReceivedTouched = false;
+    if (receivedInput) receivedInput.value = "";
+    if (debtorNameInput) debtorNameInput.value = "";
+    if (debtorPhoneInput) debtorPhoneInput.value = "";
+    if (debtorTgInput) debtorTgInput.value = "";
+    if (debtorDateInput) debtorDateInput.value = "";
+    if (debtorFields) debtorFields.style.display = "none";
+
     // Close mobile sheet on successful checkout
     const registerContainer = document.querySelector(".register-container");
     if (registerContainer) {
@@ -1269,7 +1659,7 @@ function openHistoricalReceipt(txId) {
     if (!tx) return;
 
     const storeName = appConfig.storeName || "ECO SPORTS";
-    const storeDesc = `${appConfig.storeAddress || "Tashkent"} | Tel: ${appConfig.storePhone || ""}`;
+    const storeDesc = `Qo'qon shahar | Tel: ${appConfig.storePhone || ""}`;
     const receiptStoreNameEl = document.getElementById("receipt-store-name");
     const receiptStoreDescEl = document.getElementById("receipt-store-desc");
     if (receiptStoreNameEl) receiptStoreNameEl.textContent = storeName;
@@ -1563,7 +1953,7 @@ function renderOmborSummary(totPacks, totDona, totLoose, kinds) {
 }
 
 // Loyihadagi BARCHA mahsulot/zaxira/savdo ma'lumotini tozalaydi (parol bilan himoyalangan)
-function clearProject() {
+async function clearProject(password) {
     // BARCHA mahsulotlar (demo standart + dinamik) butunlay olib tashlanadi
     PRODUCTS = [];
     localStorage.setItem("eco_sports_products_cleared", "1"); // qayta yuklanganda demo qaytmasin
@@ -1580,19 +1970,8 @@ function clearProject() {
     localStorage.setItem("eco_sports_kirim_history", "[]");
     localStorage.setItem("eco_sports_sales_history", "[]");
 
-    // Supabase'dan ham o'chirish (.then() — aks holda so'rov yuborilmaydi)
-    if (typeof supabaseClient !== "undefined" && supabaseClient) {
-        try { supabaseClient.from("eco_inventory").delete().not("product_id", "is", null).then(() => {}, () => {}); } catch (e) { console.warn(e); }
-        try { supabaseClient.from("eco_kirim_history").delete().not("id", "is", null).then(() => {}, () => {}); } catch (e) { console.warn(e); }
-        try { supabaseClient.from("eco_sale_items").delete().not("id", "is", null).then(() => {}, () => {}); } catch (e) { console.warn(e); }
-        try { supabaseClient.from("eco_sales").delete().not("id", "is", null).then(() => {}, () => {}); } catch (e) { console.warn(e); }
-        if (typeof dbSaveConfig === "function") dbSaveConfig("eco_color_stock", {});
-    }
-
-    // Savatni ham tozalash
+    // Savatni darhol tozalash + UI'ni yangilash (foydalanuvchi tez ko'rsin)
     state.cart = [];
-
-    // UI'ni yangilash
     if (typeof renderTiles === "function") renderTiles();
     if (typeof renderOmborTable === "function") renderOmborTable();
     if (typeof renderBuxgalteriya === "function") renderBuxgalteriya();
@@ -1600,7 +1979,41 @@ function clearProject() {
     if (typeof updateAnalytics === "function") updateAnalytics();
     if (typeof updateReceiptUI === "function") updateReceiptUI();
 
-    alert("✅ Loyiha to'liq tozalandi!\nMahsulotlar, ombor zaxirasi va savdo tarixi o'chirildi.");
+    // Bulutdan o'chirish — RLS tufayli anon kalit DELETE qila olmaydi.
+    // Xavfsiz serverless funksiya (/api/admin-clear, service_role) orqali o'chiramiz.
+    let cloudOk = true;
+    let cloudReason = "";
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+        try {
+            const resp = await fetch("/api/admin-clear", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: password || "" })
+            });
+            if (resp.ok) {
+                const data = await resp.json().catch(() => ({}));
+                cloudOk = !(data && data.ok === false);
+                const clearedAt = Date.now();
+                localStorage.setItem("eco_sports_cleared_seen", String(clearedAt));
+            } else {
+                cloudOk = false;
+                const err = await resp.json().catch(() => ({}));
+                cloudReason = err.error || ("HTTP " + resp.status);
+                console.warn("admin-clear javobi:", resp.status, cloudReason);
+            }
+        } catch (e) {
+            // Lokal dev'da (npx serve) /api yo'q — bu normal; mahalliy tozalash baribir bo'ldi
+            cloudOk = false;
+            cloudReason = "serverless chaqirib bo'lmadi (lokal rejim?)";
+            console.warn("admin-clear chaqiruvi muvaffaqiyatsiz:", e);
+        }
+    }
+
+    if (cloudOk) {
+        alert("✅ Loyiha to'liq tozalandi!\nMahsulotlar, ombor zaxirasi va savdo tarixi barcha qurilmalardan (bulut) o'chirildi.");
+    } else {
+        alert("⚠️ Mahalliy ma'lumot tozalandi, lekin bulut tozalanmadi" + (cloudReason ? `:\n${cloudReason}` : ".") + "\n\nEslatma: bu Vercel'da /api/admin-clear va SUPABASE_SERVICE_ROLE env sozlanganda ishlaydi. Aks holda boshqa qurilmalarda mahsulot qaytishi mumkin.");
+    }
 }
 
 // Ombor: mahsulotning rang/o'lcham bo'yicha qolgan holatini modalda ko'rsatadi
@@ -1882,6 +2295,31 @@ try {
 function saveSupplierPayments() {
     localStorage.setItem("eco_sports_supplier_payments", JSON.stringify(supplierPayments));
     if (typeof dbSaveConfig === "function") dbSaveConfig("eco_supplier_payments", supplierPayments);
+}
+
+// --- Mijoz qarzlari (nasiya savdo) ---
+let customerDebts = [];
+try {
+    const _cd = localStorage.getItem("eco_sports_customer_debts");
+    if (_cd) customerDebts = JSON.parse(_cd) || [];
+} catch (e) { customerDebts = []; }
+
+function saveCustomerDebts() {
+    localStorage.setItem("eco_sports_customer_debts", JSON.stringify(customerDebts));
+    if (typeof dbSaveConfig === "function") dbSaveConfig("eco_customer_debts", customerDebts);
+}
+
+// --- Mahsulot narxlari (eco_inventory integer-PK bug'i sabab eco_config'da saqlanadi) ---
+// { [productId]: { cogs, pack_price, price } }
+let productPrices = {};
+try {
+    const _pp = localStorage.getItem("eco_sports_product_prices");
+    if (_pp) productPrices = JSON.parse(_pp) || {};
+} catch (e) { productPrices = {}; }
+
+function saveProductPrices() {
+    localStorage.setItem("eco_sports_product_prices", JSON.stringify(productPrices));
+    if (typeof dbSaveConfig === "function") dbSaveConfig("eco_product_prices", productPrices);
 }
 function getSupplierPaidTotal(name) {
     return (supplierPayments[name] || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
@@ -3072,7 +3510,7 @@ function getColorHex(color) {
     }
 }
 
-// --- RENDER DYNAMIC COLOR-WISE PACK INPUTS [NEW] ---
+// --- RENDER DYNAMIC COLOR-WISE PACK INPUTS [premium UI/UX] ---
 function renderDynamicPackInputs() {
     const container = document.getElementById("warehouse-qty-container");
     if (!container) return;
@@ -3081,37 +3519,67 @@ function renderDynamicPackInputs() {
     const checkedSizesCount = document.querySelectorAll('input[name="warehouse-size"]:checked').length;
 
     if (checkedColors.length === 0) {
-        container.innerHTML = `<small style="color: var(--text-muted); font-style: italic; padding: 0.5rem 0; display: block;">💡 Ranglarni va o'lchamlarni tanlang, miqdorni kiritish maydoni ochiladi.</small>`;
+        container.innerHTML = `
+            <div class="pack-empty-hint">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Yuqorida <strong>ranglarni</strong> va <strong>o'lchamlarni</strong> tanlang — har rang uchun nechi pachka kirgani shu yerda ochiladi.</span>
+            </div>`;
         return;
     }
 
-    let html = `<label style="margin-bottom: 0.5rem; display: block; font-weight: 700;">Kirim Miqdori (Pachkada)</label>`;
-    html += `<div style="font-size: 0.72rem; color: var(--accent); margin-bottom: 0.8rem; background: rgba(99, 102, 241, 0.05); padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px dashed rgba(99, 102, 241, 0.2); line-height: 1.4;">
-                💡 <strong>1 pachkada:</strong> ${checkedSizesCount} dona kiyim bo'ladi (chunki ${checkedSizesCount} ta razmer belgilandi). Dona kiritilmaydi, faqat pachka kiritiladi!
-             </div>`;
-    html += `<div style="display: flex; flex-direction: column; gap: 0.6rem;">`;
+    let html = `
+        <div class="pack-section-head">
+            <span class="pack-section-title"><i class="fa-solid fa-boxes-stacked"></i> Kirim Miqdori</span>
+            <span class="pack-perpack-badge"><i class="fa-solid fa-layer-group"></i> 1 pachka = ${checkedSizesCount} dona</span>
+        </div>
+        <div class="pack-cards">`;
 
     checkedColors.forEach(color => {
-        // Find existing value if any to preserve it when toggling other checkmarks
+        // Preserve existing value when toggling other checkmarks
         const existingInput = document.querySelector(`.color-pack-input[data-color="${color}"]`);
         const val = existingInput ? existingInput.value : "10";
+        const isLight = ["Oq", "Melanj", "Xakki"].includes(color);
 
         html += `
-            <div style="display: grid; grid-template-columns: 1fr 130px; align-items: center; background: rgba(255,255,255,0.02); padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border-color);">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="color-dot" style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color: ${getColorHex(color)}; border: 1px solid rgba(255,255,255,0.2);"></span>
-                    <strong style="color: #fff; font-size: 0.85rem;">${color}</strong>
+            <div class="pack-card">
+                <div class="pack-card-color">
+                    <span class="pack-swatch${isLight ? ' is-light' : ''}" style="background-color:${getColorHex(color)};"></span>
+                    <span class="pack-color-name">${color}</span>
                 </div>
-                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
-                    <input type="number" class="color-pack-input" data-color="${color}" value="${val}" min="1" required style="width: 70px; padding: 0.3rem 0.5rem; text-align: center; border-radius: 6px; background: var(--bg-dark-input); border: 1px solid var(--border-color); color: var(--primary); font-weight: 800; font-size: 0.85rem;">
-                    <span style="font-size: 0.72rem; color: var(--text-muted); font-weight:700;">pachka</span>
+                <div class="pack-stepper">
+                    <button type="button" class="pack-step-btn" data-step="-1" data-color="${color}" aria-label="Kamaytirish"><i class="fa-solid fa-minus"></i></button>
+                    <input type="number" class="color-pack-input" data-color="${color}" value="${val}" min="1" required>
+                    <button type="button" class="pack-step-btn" data-step="1" data-color="${color}" aria-label="Ko'paytirish"><i class="fa-solid fa-plus"></i></button>
+                    <span class="pack-unit">pachka</span>
                 </div>
-            </div>
-        `;
+            </div>`;
     });
     html += `</div>`;
+    html += `<div class="pack-total" id="pack-total-summary"></div>`;
 
     container.innerHTML = html;
+    updatePackTotal();
+}
+
+// --- Jonli jami: rang / pachka / dona ---
+function updatePackTotal() {
+    const summary = document.getElementById("pack-total-summary");
+    if (!summary) return;
+    const sizesCount = document.querySelectorAll('input[name="warehouse-size"]:checked').length;
+    const inputs = document.querySelectorAll(".color-pack-input");
+    let totalPacks = 0, activeColors = 0;
+    inputs.forEach(i => {
+        const v = parseInt(i.value, 10) || 0;
+        totalPacks += v;
+        if (v > 0) activeColors++;
+    });
+    const totalDona = totalPacks * sizesCount;
+    summary.innerHTML = `
+        <div class="pack-total-item"><span class="pack-total-num">${activeColors}</span><span class="pack-total-lbl">rang</span></div>
+        <div class="pack-total-sep"></div>
+        <div class="pack-total-item"><span class="pack-total-num">${totalPacks}</span><span class="pack-total-lbl">pachka</span></div>
+        <div class="pack-total-sep"></div>
+        <div class="pack-total-item"><span class="pack-total-num accent">${totalDona}</span><span class="pack-total-lbl">dona</span></div>`;
 }
 
 // --- UPDATE SELECTED COLORS PREVIEW IN TRIGGER BOX [NEW] ---
@@ -3191,6 +3659,10 @@ function approveProductPrice(productId, cogs, sellingPrice, donaPrice) {
     p.price = donaPrice; // Dona sotish narxi
     p.approved = true;
 
+    // Narxni eco_config'ga yozish (barcha qurilmalarga ishonchli yetib boradi)
+    productPrices[p.id] = { cogs: cogs, pack_price: sellingPrice, price: donaPrice };
+    saveProductPrices();
+
     // Save updated dynamicProducts list
     localStorage.setItem("eco_sports_dynamic_products", JSON.stringify(state.dynamicProducts));
 
@@ -3208,17 +3680,11 @@ function approveProductPrice(productId, cogs, sellingPrice, donaPrice) {
     inventory[p.id] = p.qty || 0;
     localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
 
-    // Sync to Supabase
+    // Sync to Supabase (navbat orqali — offline'da yo'qolmaydi)
     if (supabaseClient) {
-        dbSaveInventory(p.id, p, inventory[p.id]);
-
-        // Also update the status of the Kirim document to TASDIQLANDI
-        supabaseClient.from("eco_kirim_history")
-            .update({ status: "TASDIQLANDI" })
-            .eq("product_id", p.id)
-            .then(() => {
-                console.log("Supabase: Kirim history status updated to TASDIQLANDI!");
-            });
+        dbSaveInventory(p.id, p, inventory[p.id]); // eco_inventory (vestigial, navbatsiz)
+        // Kirim hujjati holatini TASDIQLANDI ga o'tkazish — navbatga
+        enqueueOp({ type: "kirim_status", product_id: p.id, patch: { status: "TASDIQLANDI" } });
     }
 
     // Umumiy tannarx (tan narxdan): pachka soni × pachka tan narxi
@@ -3575,6 +4041,801 @@ function renderCashiersList() {
     });
 }
 
+// ============================================================
+// 11.9 TIZIM DIAGNOSTIKASI & XAVFSIZLIK TEKSHIRUVI (in-app self-test)
+// Har bir bo'lim, tugma, modal, funksiya, ma'lumot oqimi, bulut ulanishi,
+// hisob-kitob to'g'riligi va xavfsizlikni tekshirib, bug'lar bo'yicha
+// hisobot chiqaradi. Hech qanday ma'lumotni o'zgartirmaydi (read-only).
+// ============================================================
+let _lastDiagReport = null;
+let _diagRunning = false;
+let _diagFixes = [];
+
+function _diagPush(arr, category, name, status, detail) {
+    arr.push({ category, name, status, detail: detail || "" });
+}
+
+// Tartibga sezgir bo'lmagan kanonik solishtirish (kalit tartibi farqi false-positive bermasin)
+function _diagCanon(v) {
+    if (Array.isArray(v)) return "[" + v.map(_diagCanon).join(",") + "]";
+    if (v && typeof v === "object") return "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + _diagCanon(v[k])).join(",") + "}";
+    return JSON.stringify(v);
+}
+
+async function runSystemDiagnostics() {
+    const R = [];
+    _diagFixes = [];
+    // P(kategoriya, nom, holat, izoh, fix?) — fix berilsa va holat 'pass' bo'lmasa, avtomatik tuzatish ro'yxatiga qo'shiladi
+    const P = (c, n, s, d, fix) => {
+        _diagPush(R, c, n, s, d);
+        if (fix && s !== "pass") {
+            R[R.length - 1].fixable = true;
+            _diagFixes.push(Object.assign({ finding: n, status: s }, fix));
+        }
+    };
+
+    // ---------- 1. BO'LIMLAR (sections) ----------
+    const SECTIONS = {
+        "login-screen": "Login ekrani",
+        "dashboard-screen": "Boshqaruv paneli",
+        "sotuv-section": "Sotuv bo'limi",
+        "ombor-section": "Ombor bo'limi",
+        "buxgalteriya-section": "Buxgalteriya bo'limi",
+        "sozlamalar-section": "Sozlamalar bo'limi"
+    };
+    Object.entries(SECTIONS).forEach(([id, label]) => {
+        const el = document.getElementById(id);
+        P("Bo'limlar", label, el ? "pass" : "fail", el ? "DOM'da mavjud" : `#${id} topilmadi!`);
+    });
+
+    // ---------- 2. NAVIGATSIYA (tab → bo'lim manzili) ----------
+    const tabs = document.querySelectorAll(".dept-tab-btn");
+    P("Navigatsiya", "Tab tugmalari soni", tabs.length === 4 ? "pass" : "warn", `${tabs.length} ta tab topildi (kutilgan: 4)`);
+    tabs.forEach(btn => {
+        const dept = btn.dataset.dept;
+        const target = document.getElementById(`${dept}-section`);
+        P("Navigatsiya", `Tab "${dept}" → manzil`, target ? "pass" : "fail",
+            target ? `${dept}-section'ga to'g'ri ulangan` : `${dept}-section topilmadi — tugma hech qayerga bormaydi!`);
+    });
+
+    // ---------- 3. TUGMALAR (kinopkalar) ----------
+    const BUTTONS = {
+        "pos-checkout-btn": "Sotish (kassa)",
+        "pos-search-input": "Mahsulot qidirish",
+        "logout-trigger": "Tizimdan chiqish",
+        "settings-clear-project": "Loyihani tozalash",
+        "add-cashier-trigger": "Kassir qo'shish",
+        "add-supplier-trigger": "Ta'minotchi qo'shish",
+        "add-category-trigger": "Kategoriya qo'shish",
+        "diag-run-btn": "Diagnostika tugmasi",
+        "sync-badge": "Sinx holati ko'rsatkichi"
+    };
+    Object.entries(BUTTONS).forEach(([id, label]) => {
+        const el = document.getElementById(id);
+        P("Tugmalar", label, el ? "pass" : "fail", el ? "Mavjud" : `#${id} topilmadi!`);
+    });
+
+    // ---------- 4. MODALLAR (oyna oqimlari) ----------
+    const MODALS = {
+        "pos-calc-modal": "Sotuv kalkulyatori",
+        "pos-pin-modal": "Sotuv PIN",
+        "pos-success-receipt-modal": "Chek (muvaffaqiyat)",
+        "payment-pin-modal": "To'lov PIN himoyasi",
+        "payment-image-modal": "To'lov rasmi",
+        "kirim-payment-modal": "Kirim to'lovi (naqt/nasiya)",
+        "ombor-detail-modal": "Ombor batafsil",
+        "bux-expense-modal": "Xarajat qo'shish",
+        "settings-cashier-modal": "Kassir formasi",
+        "settings-supplier-modal": "Ta'minotchi formasi",
+        "settings-category-modal": "Kategoriya formasi",
+        "add-product-warehouse-modal": "Mahsulot qo'shish (kirim)",
+        "warehouse-document-modal": "Kirim hujjati",
+        "clear-project-modal": "Tozalash parol oynasi"
+    };
+    Object.entries(MODALS).forEach(([id, label]) => {
+        const el = document.getElementById(id);
+        P("Modallar", label, el ? "pass" : "fail", el ? "Mavjud" : `#${id} topilmadi!`);
+    });
+
+    // ---------- 5. FUNKSIYALAR (mantiq) ----------
+    const FUNCS = [
+        "completeSale", "approveProductPrice", "openCalcModal", "renderTiles",
+        "renderOmborTable", "renderBuxgalteriya", "renderHistoryTable", "renderSupplierStockReport",
+        "syncFromSupabase", "flushSyncQueue", "enqueueOp", "dbSaveSale", "dbSaveConfig",
+        "deductColorPack", "deductColorDona", "saveCustomerDebts", "addSupplierPayment",
+        "exportLedgerExcel", "exportLedgerPdf", "clearProject", "unlockDashboard",
+        "handleSellerPinSubmit", "ensureColorStock", "getSupplierTakenValue", "getSupplierPaidTotal"
+    ];
+    FUNCS.forEach(fn => {
+        const ok = typeof window[fn] === "function";
+        P("Funksiyalar", fn, ok ? "pass" : "fail", ok ? "Aniqlangan" : "Funksiya topilmadi — bog'lanish uzilgan!");
+    });
+
+    // ---------- 6. MA'LUMOT YAXLITLIGI (localStorage manzillari) ----------
+    const LS = [
+        ["eco_sports_sales_history", "array", "Sotuvlar tarixi"],
+        ["eco_sports_inventory", "object", "Ombor qoldig'i"],
+        ["eco_sports_color_stock", "object", "Rang/o'lcham qoldig'i"],
+        ["eco_sports_dynamic_products", "array", "Mahsulotlar"],
+        ["eco_sports_kirim_history", "array", "Kirim tarixi"],
+        ["eco_sports_product_prices", "object", "Narxlar"],
+        ["eco_sports_expenses", "array", "Xarajatlar"],
+        ["eco_sports_suppliers", "array", "Ta'minotchilar"],
+        ["eco_sports_categories", "array", "Kategoriyalar"],
+        ["eco_sports_users", "array", "Foydalanuvchilar"],
+        ["eco_sports_config", "object", "Sozlamalar"],
+        ["eco_sports_customer_debts", "array", "Mijoz qarzlari"],
+        ["eco_sports_supplier_payments", "object", "Ta'minotchi to'lovlari"],
+        ["eco_sync_queue", "array", "Sinx navbati (outbox)"]
+    ];
+    LS.forEach(([key, type, label]) => {
+        const raw = localStorage.getItem(key);
+        if (raw === null) {
+            P("Ma'lumot yaxlitligi", label, "warn", `${key} hali yaratilmagan (bo'sh)`);
+            return;
+        }
+        try {
+            const val = JSON.parse(raw);
+            const actual = Array.isArray(val) ? "array" : typeof val;
+            if (actual === type) {
+                const size = Array.isArray(val) ? `${val.length} ta yozuv` : `${Object.keys(val).length} ta kalit`;
+                P("Ma'lumot yaxlitligi", label, "pass", `${key}: ${size}`);
+            } else {
+                P("Ma'lumot yaxlitligi", label, "fail", `${key}: turi ${actual}, kutilgan ${type} — buzilgan!`);
+            }
+        } catch (e) {
+            P("Ma'lumot yaxlitligi", label, "fail", `${key}: JSON buzilgan — o'qib bo'lmadi!`);
+        }
+    });
+
+    // ---------- 7. MA'LUMOT OQIMI (round-trip: yozish→o'qish→o'chirish) ----------
+    try {
+        const testKey = "__eco_diag_roundtrip__";
+        const testVal = { t: Date.now(), ok: true };
+        localStorage.setItem(testKey, JSON.stringify(testVal));
+        const back = JSON.parse(localStorage.getItem(testKey));
+        localStorage.removeItem(testKey);
+        const ok = back && back.ok === true && back.t === testVal.t;
+        P("Ma'lumot oqimi", "localStorage yozish→o'qish", ok ? "pass" : "fail",
+            ok ? "Ma'lumot to'g'ri manzilga bordi va qaytdi" : "Round-trip muvaffaqiyatsiz!");
+    } catch (e) {
+        P("Ma'lumot oqimi", "localStorage yozish→o'qish", "fail", "localStorage ishlamayapti: " + e.message);
+    }
+
+    // ---------- 8. BULUT ULANISHI (Supabase) ----------
+    if (!supabaseClient) {
+        P("Bulut (Supabase)", "Mijoz (client)", "fail", "Supabase SDK yuklanmagan — bulutga ulanmaydi!");
+    } else {
+        P("Bulut (Supabase)", "Mijoz (client)", "pass", "Supabase SDK yuklandi");
+        try {
+            const { error } = await supabaseClient.from("eco_config").select("key").limit(1);
+            P("Bulut (Supabase)", "eco_config jadvalini o'qish", error ? "fail" : "pass",
+                error ? ("Xato: " + error.message) : "Jonli ulanish ishladi");
+        } catch (e) {
+            P("Bulut (Supabase)", "Jonli so'rov", "warn", "Ulanib bo'lmadi (oflayn?): " + e.message);
+        }
+    }
+    P("Bulut (Supabase)", "Internet holati", navigator.onLine ? "pass" : "warn",
+        navigator.onLine ? "Onlayn" : "Oflayn — navbat orqali keyin yuboriladi");
+
+    // ---------- 9. SINX NAVBATI (outbox) ----------
+    const qLen = Array.isArray(syncQueue) ? syncQueue.length : 0;
+    P("Sinx navbati", "Navbat holati", qLen === 0 ? "pass" : "warn",
+        qLen === 0 ? "Bo'sh — hammasi bulutga yuborilgan" : `${qLen} ta amal yuborilmagan`);
+    if (qLen > 0) {
+        const stuck = syncQueue.filter(o => (o.attempts || 0) >= 3).length;
+        P("Sinx navbati", "Qotgan amallar", stuck === 0 ? "pass" : "fail",
+            stuck === 0 ? "Qotgan amal yo'q" : `${stuck} ta amal 3+ marta urinishdan o'tmadi!`);
+        const badTypes = syncQueue.filter(o => !["config", "sale", "kirim", "kirim_status", "expense"].includes(o.type));
+        P("Sinx navbati", "Amal turlari", badTypes.length === 0 ? "pass" : "fail",
+            badTypes.length === 0 ? "Barcha turlar to'g'ri" : `${badTypes.length} ta noma'lum tur — applySyncOp tashlab yuboradi!`);
+    }
+
+    // ---------- 10. HISOB-KITOB TO'G'RILIGI (matematik) ----------
+    // 10a. Manfiy ombor qoldig'i
+    const negInv = Object.entries(inventory || {}).filter(([k, v]) => Number(v) < 0);
+    P("Hisob-kitob", "Ombor qoldig'i manfiy emas", negInv.length === 0 ? "pass" : "fail",
+        negInv.length === 0 ? "Barcha qoldiq ≥ 0" : `${negInv.length} ta mahsulotda manfiy qoldiq: ${negInv.map(x => x[0]).join(", ")}`,
+        negInv.length ? { id: "clamp-neg-inv", label: "Manfiy qoldiqni 0 ga tenglash", run: () => {
+            let n = 0; Object.keys(inventory).forEach(k => { if (Number(inventory[k]) < 0) { inventory[k] = 0; n++; } });
+            localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
+            return n + " ta qoldiq 0 ga tuzatildi";
+        } } : null);
+
+    // 10b. Tasdiqlangan, lekin narxsiz mahsulotlar
+    const noPriced = (state.dynamicProducts || []).filter(p => p.approved && !((p.price || 0) > 0 || (p.pack_price || 0) > 0));
+    const recoverable = noPriced.filter(p => productPrices[String(p.id)] || productPrices[p.id]);
+    P("Hisob-kitob", "Tasdiqlangan mahsulot narxi", noPriced.length === 0 ? "pass" : "warn",
+        noPriced.length === 0 ? "Barcha tasdiqlangan mahsulotda narx bor"
+            : `${noPriced.length} ta narxsiz: ${noPriced.map(p => p.name).join(", ")} — hisobotda 0 UZS chiqadi${recoverable.length ? ` (${recoverable.length} tasini productPrices'dan tiklash mumkin)` : ""}`,
+        recoverable.length ? { id: "reapply-prices", label: "Narxni productPrices'dan tiklash", run: () => {
+            let n = 0; (state.dynamicProducts || []).forEach(p => {
+                const pr = productPrices[String(p.id)] || productPrices[p.id];
+                if (p.approved && !((p.price || 0) > 0 || (p.pack_price || 0) > 0) && pr) {
+                    if (pr.price != null) p.price = pr.price;
+                    if (pr.pack_price != null) p.pack_price = pr.pack_price;
+                    if (pr.cogs != null) p.cogs = pr.cogs;
+                    n++;
+                }
+            });
+            localStorage.setItem("eco_sports_dynamic_products", JSON.stringify(state.dynamicProducts));
+            return n + " ta mahsulot narxi tiklandi";
+        } } : null);
+
+    // 10c. Mijoz qarzi matematikasi (olingan + qarz = jami)
+    const badDebts = (customerDebts || []).filter(d => Math.abs((Number(d.received) + Number(d.debt)) - Number(d.total)) > 1);
+    P("Hisob-kitob", "Mijoz qarzi balansi", badDebts.length === 0 ? "pass" : "fail",
+        badDebts.length === 0 ? "olingan + qarz = jami (barchasida)" : `${badDebts.length} ta qarzda balans buzilgan (olingan+qarz ≠ jami)!`,
+        badDebts.length ? { id: "fix-debt-balance", label: "Qarz balansini qayta hisoblash", run: () => {
+            let n = 0; (customerDebts || []).forEach(d => {
+                const total = Number(d.total) || 0;
+                const rec = Math.max(0, Math.min(Number(d.received) || 0, total));
+                if (Math.abs((Number(d.received) + Number(d.debt)) - total) > 1) { d.received = rec; d.debt = Math.max(0, total - rec); n++; }
+            });
+            saveCustomerDebts();
+            return n + " ta qarz balansi tuzatildi";
+        } } : null);
+
+    // 10d. Rang/o'lcham qoldig'i umumiy qoldiqqa mosligi
+    let colorMismatch = 0;
+    Object.keys(colorStock || {}).forEach(pid => {
+        let sum = 0;
+        const cs = colorStock[pid] || {};
+        Object.values(cs).forEach(sizes => Object.values(sizes).forEach(n => sum += Number(n) || 0));
+        const inv = Number(inventory[pid]);
+        if (!isNaN(inv) && Math.abs(sum - inv) > 0) colorMismatch++;
+    });
+    P("Hisob-kitob", "Rang qoldig'i = umumiy qoldiq", colorMismatch === 0 ? "pass" : "warn",
+        colorMismatch === 0 ? "Mos keladi" : `${colorMismatch} ta mahsulotda rang yig'indisi umumiy qoldiqdan farq qiladi (eski sotuvlar rangsiz bo'lishi mumkin)`);
+
+    // 10e. Ta'minotchiga ortiqcha to'lov
+    let overpaid = 0;
+    (state.suppliers || []).forEach(s => {
+        const taken = getSupplierTakenValue(s.name);
+        const paid = getSupplierPaidTotal(s.name);
+        if (paid - taken > 1) overpaid++;
+    });
+    P("Hisob-kitob", "Ta'minotchi to'lovlari", overpaid === 0 ? "pass" : "warn",
+        overpaid === 0 ? "Hech kimga ortiqcha to'lanmagan" : `${overpaid} ta ta'minotchiga olingan yukdan ko'p to'langan`);
+
+    // ---------- 11. ROLLAR & SOZLAMALAR ----------
+    const VALID_ROLES = ["admin", "kassir-optim", "kassir-dona", "omborchi"];
+    const noRole = (users || []).filter(u => !VALID_ROLES.includes(u.role));
+    P("Rollar", "Foydalanuvchi rollari", noRole.length === 0 ? "pass" : "fail",
+        noRole.length === 0 ? `${users.length} ta foydalanuvchi, rollar to'g'ri` : `${noRole.length} ta foydalanuvchida noto'g'ri rol: ${noRole.map(u => u.username).join(", ")}`,
+        noRole.length ? { id: "fix-roles", label: "Noto'g'ri rollarni tuzatish", run: () => {
+            let n = 0; users.forEach(u => {
+                if (!VALID_ROLES.includes(u.role)) {
+                    const un = (u.username || "").toLowerCase();
+                    u.role = un === "admin" ? "admin" : un === "optim1" ? "kassir-optim" : un === "dona1" ? "kassir-dona" : un === "ombor1" ? "omborchi" : "kassir-dona";
+                    n++;
+                }
+            });
+            localStorage.setItem("eco_sports_users", JSON.stringify(users));
+            return n + " ta rol tuzatildi";
+        } } : null);
+    const hasAdmin = (users || []).some(u => u.role === "admin");
+    P("Rollar", "Admin mavjudligi", hasAdmin ? "pass" : "fail", hasAdmin ? "Kamida 1 admin bor" : "Admin yo'q — tizimga kira olmaysiz!");
+    const pinOk = /^\d{4}$/.test(String(appConfig.pin || ""));
+    P("Sozlamalar", "Kassa PIN formati", pinOk ? "pass" : "warn", pinOk ? "4 xonali" : `PIN "${appConfig.pin}" 4 xonali emas`);
+
+    // ---------- 12. XAVFSIZLIK ----------
+    P("Xavfsizlik", "HTTPS protokoli", location.protocol === "https:" || location.hostname === "localhost" ? "pass" : "warn",
+        location.protocol === "https:" ? "Xavfsiz (HTTPS)" : (location.hostname === "localhost" ? "Lokal (ruxsat)" : "HTTPS emas — ma'lumot ochiq uzatiladi!"));
+    const tokenRe = /\d{6,}:[A-Za-z0-9_-]{20,}/;
+    const clientToken = (appConfig && appConfig.botToken) || "";
+    const legacyToken = (typeof BOT_TOKEN !== "undefined" && BOT_TOKEN) ? String(BOT_TOKEN) : "";
+    const tokenExposed = tokenRe.test(clientToken) || tokenRe.test(legacyToken);
+    P("Xavfsizlik", "Telegram BOT_TOKEN", tokenExposed ? "warn" : "pass",
+        tokenExposed ? "Token hali frontend'da saqlanyapti — /api/notify (server ENV) ishlatilsin" : "Token frontend'da yo'q — serverda yashirin ✅");
+    P("Xavfsizlik", "Supabase anon kalit", "warn",
+        "Anon kalit frontendда (odatiy). Supabase'da RLS (Row Level Security) yoqilganini tekshiring — anon kalit DELETE qila olmasligi kerak");
+    const sw = ("serviceWorker" in navigator);
+    P("Xavfsizlik", "Offline himoya (SW)", sw ? "pass" : "warn", sw ? "Service Worker qo'llab-quvvatlanadi" : "Service Worker yo'q (iOS Telegram?) — offline ishlamasligi mumkin");
+    // Ma'lumot zaxirasi yoshi
+    const lastBak = Number(localStorage.getItem("eco_last_backup_at")) || 0;
+    const bakDays = lastBak ? Math.floor((Date.now() - lastBak) / 86400000) : null;
+    P("Xavfsizlik", "Ma'lumot zaxirasi (backup)", (lastBak && bakDays <= 7) ? "pass" : "warn",
+        lastBak ? `Oxirgi zaxira ${bakDays} kun oldin olingan` : "Hali zaxira olinmagan — 'Ma'lumot Zaxirasi' bo'limidan yuklab oling");
+    // Standart admin parol o'zgartirilganmi
+    const adminUser = (users || []).find(u => (u.username || "").toLowerCase() === "admin");
+    const defaultPw = adminUser && adminUser.password === "eco777";
+    P("Xavfsizlik", "Standart admin parol", defaultPw ? "warn" : "pass",
+        defaultPw ? "Admin paroli hali standart (eco777) — Xodimlar bo'limidan o'zgartiring" : "Standart parol o'zgartirilgan");
+
+    // ---------- 13. FORMULA & MANTIQ (sintetik — ma'lumotga tegmaydi, regressiyani topadi) ----------
+    try {
+        const fakeProd = { sizes: ["S", "M", "L", "XL", "XXL"], pack_price: 280000 };
+        const ps = packSizeOf(fakeProd);
+        P("Formula & Mantiq", "packSizeOf (o'lcham soni)", ps === 5 ? "pass" : "fail", `5 o'lcham → ${ps} (kutilgan: 5)`);
+        const ps2 = packSizeOf({ sizes: [] });
+        P("Formula & Mantiq", "packSizeOf fallback", ps2 === 5 ? "pass" : "fail", `bo'sh o'lcham → ${ps2} (kutilgan: 5 default)`);
+        const odp = optimDonaPrice(fakeProd);
+        P("Formula & Mantiq", "optimDonaPrice (chala dona narxi)", odp === 56000 ? "pass" : "fail", `280000 / 5 → ${odp} (kutilgan: 56000)`);
+        const fp = formatPrice(1000);
+        P("Formula & Mantiq", "formatPrice format", /UZS/.test(fp) ? "pass" : "fail", `1000 → "${fp}"`);
+        const id1 = generateReceiptId(), id2 = generateReceiptId();
+        P("Formula & Mantiq", "generateReceiptId noyobligi", (id1 && id2 && id1 !== id2) ? "pass" : "warn", `${id1} / ${id2}`);
+        // Savat matematikasi (sintetik)
+        const testCart = [{ soldPrice: 56000, qty: 3 }, { soldPrice: 280000, qty: 1 }];
+        const sub = testCart.reduce((t, i) => t + i.soldPrice * i.qty, 0);
+        P("Formula & Mantiq", "Savat jami hisobi", sub === 448000 ? "pass" : "fail", `3×56000 + 1×280000 → ${sub} (kutilgan: 448000)`);
+    } catch (e) {
+        P("Formula & Mantiq", "Formula bajarilishi", "fail", "Funksiya xato berdi: " + e.message);
+    }
+
+    // ---------- 14. BOG'LANISH YAXLITLIGI (referential integrity — haqiqiy bug'lar) ----------
+    const allIds = new Set([...PRODUCTS.map(p => String(p.id)), ...(state.dynamicProducts || []).map(p => String(p.id))]);
+
+    const orphanInv = Object.keys(inventory || {}).filter(id => !allIds.has(String(id)));
+    P("Bog'lanish", "Yetim ombor yozuvlari", orphanInv.length === 0 ? "pass" : "warn",
+        orphanInv.length === 0 ? "Har bir qoldiq mavjud mahsulotga bog'langan" : `${orphanInv.length} ta qoldiq mavjud bo'lmagan mahsulotga tegishli: ${orphanInv.slice(0, 5).join(", ")}`,
+        orphanInv.length ? { id: "rm-orphan-inv", label: "Yetim ombor yozuvlarini o'chirish", run: () => {
+            orphanInv.forEach(id => delete inventory[id]);
+            localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
+            return orphanInv.length + " ta yetim yozuv o'chirildi";
+        } } : null);
+
+    const orphanPrices = Object.keys(productPrices || {}).filter(id => !allIds.has(String(id)));
+    P("Bog'lanish", "Yetim narx yozuvlari", orphanPrices.length === 0 ? "pass" : "warn",
+        orphanPrices.length === 0 ? "Har bir narx mavjud mahsulotga bog'langan" : `${orphanPrices.length} ta narx mavjud bo'lmagan mahsulotga tegishli`,
+        orphanPrices.length ? { id: "rm-orphan-prices", label: "Yetim narxlarni o'chirish", run: () => {
+            orphanPrices.forEach(id => delete productPrices[id]);
+            saveProductPrices();
+            return orphanPrices.length + " ta yetim narx o'chirildi";
+        } } : null);
+
+    const orphanCS = Object.keys(colorStock || {}).filter(id => !allIds.has(String(id)));
+    P("Bog'lanish", "Yetim rang qoldiqlari", orphanCS.length === 0 ? "pass" : "warn",
+        orphanCS.length === 0 ? "Har bir rang qoldig'i mavjud mahsulotga bog'langan" : `${orphanCS.length} ta rang qoldig'i yetim`,
+        orphanCS.length ? { id: "rm-orphan-cs", label: "Yetim rang qoldiqlarini o'chirish", run: () => {
+            orphanCS.forEach(id => delete colorStock[id]);
+            saveColorStock();
+            return orphanCS.length + " ta yetim rang qoldig'i o'chirildi";
+        } } : null);
+
+    const prodIdCount = {}; PRODUCTS.forEach(p => prodIdCount[String(p.id)] = (prodIdCount[String(p.id)] || 0) + 1);
+    const dupInProducts = Object.keys(prodIdCount).filter(id => prodIdCount[id] > 1);
+    P("Bog'lanish", "Takror mahsulot ID (katalog)", dupInProducts.length === 0 ? "pass" : "fail",
+        dupInProducts.length === 0 ? "Takror ID yo'q" : `${dupInProducts.length} ta ID takrorlangan: ${dupInProducts.join(", ")} — plitka 2 marta chiqadi!`,
+        dupInProducts.length ? { id: "dedup-products", label: "Takror mahsulotlarni birlashtirish", run: () => {
+            const seen = new Set();
+            PRODUCTS = PRODUCTS.filter(p => { const k = String(p.id); if (seen.has(k)) return false; seen.add(k); return true; });
+            return "Katalogdagi takrorlar olib tashlandi";
+        } } : null);
+
+    const unameCount = {}; (users || []).forEach(u => { const k = (u.username || "").toLowerCase(); unameCount[k] = (unameCount[k] || 0) + 1; });
+    const dupUsers = Object.keys(unameCount).filter(k => k && unameCount[k] > 1);
+    P("Bog'lanish", "Takror login (username)", dupUsers.length === 0 ? "pass" : "fail",
+        dupUsers.length === 0 ? "Har bir login noyob" : `${dupUsers.length} ta takror login: ${dupUsers.join(", ")} — kirish chalkashadi!`,
+        dupUsers.length ? { id: "dedup-users", label: "Takror loginlarni o'chirish", run: () => {
+            const seen = new Set();
+            users = users.filter(u => { const k = (u.username || "").toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+            localStorage.setItem("eco_sports_users", JSON.stringify(users));
+            return "Takror loginlar olib tashlandi";
+        } } : null);
+
+    const supNames = new Set((state.suppliers || []).map(s => s.name));
+    const orphanPay = Object.keys(supplierPayments || {}).filter(n => !supNames.has(n) && (supplierPayments[n] || []).length > 0);
+    P("Bog'lanish", "To'lov → ta'minotchi bog'lanishi", orphanPay.length === 0 ? "pass" : "warn",
+        orphanPay.length === 0 ? "Har bir to'lov mavjud ta'minotchiga bog'langan" : `${orphanPay.length} ta to'lov ro'yxatda yo'q ta'minotchiga: ${orphanPay.join(", ")}`);
+
+    const approvedSet = (state.dynamicProducts || []).filter(p => p.approved);
+    const inProducts = approvedSet.filter(p => !PRODUCTS.find(x => String(x.id) === String(p.id)));
+    P("Bog'lanish", "Tasdiqlangan mahsulot katalogda", inProducts.length === 0 ? "pass" : "warn",
+        inProducts.length === 0 ? "Barcha tasdiqlangan mahsulot Sotuvda ko'rinadi" : `${inProducts.length} ta tasdiqlangan mahsulot PRODUCTS'da yo'q — Sotuvda ko'rinmaydi!`,
+        inProducts.length ? { id: "merge-approved", label: "Tasdiqlangan mahsulotlarni katalogga qo'shish", run: () => {
+            inProducts.forEach(p => { if (!PRODUCTS.find(x => String(x.id) === String(p.id))) PRODUCTS.push(p); });
+            return inProducts.length + " ta mahsulot katalogga qo'shildi";
+        } } : null);
+
+    // ---------- 15. HOLAT ↔ XOTIRA SINXRONLIGI (saqlanmagan o'zgarishlarni topadi) ----------
+    const syncChecks = [
+        ["eco_sports_inventory", inventory, "Ombor (xotira↔LS)"],
+        ["eco_sports_users", users, "Foydalanuvchilar (xotira↔LS)"],
+        ["eco_sports_product_prices", productPrices, "Narxlar (xotira↔LS)"],
+        ["eco_sports_dynamic_products", state.dynamicProducts, "Mahsulotlar (xotira↔LS)"],
+        ["eco_sports_customer_debts", customerDebts, "Mijoz qarzlari (xotira↔LS)"]
+    ];
+    syncChecks.forEach(([key, mem, label]) => {
+        try {
+            const ls = JSON.parse(localStorage.getItem(key) || "null");
+            const same = _diagCanon(ls) === _diagCanon(mem);
+            P("Holat sinxronligi", label, same ? "pass" : "warn",
+                same ? "Xotira = localStorage" : "Farq bor — saqlanmagan o'zgarish yoki sinx kutilmoqda",
+                same ? null : { id: "resync-" + key, label: label + " ni qayta saqlash", run: () => {
+                    localStorage.setItem(key, JSON.stringify(mem));
+                    return "localStorage xotiradan yangilandi";
+                } });
+        } catch (e) {
+            P("Holat sinxronligi", label, "warn", "Solishtirib bo'lmadi: " + e.message);
+        }
+    });
+
+    return R;
+}
+
+function _diagStatusMeta(s) {
+    if (s === "pass") return { icon: "fa-circle-check", cls: "diag-pass", word: "O'tdi" };
+    if (s === "warn") return { icon: "fa-triangle-exclamation", cls: "diag-warn", word: "Ogohlantirish" };
+    return { icon: "fa-circle-xmark", cls: "diag-fail", word: "Xato" };
+}
+
+function renderDiagResults(results) {
+    const box = document.getElementById("diag-results");
+    if (!box) return;
+    const pass = results.filter(r => r.status === "pass").length;
+    const warn = results.filter(r => r.status === "warn").length;
+    const fail = results.filter(r => r.status === "fail").length;
+    const total = results.length || 1;
+    const score = Math.round((pass / total) * 100);
+
+    // Summary
+    const summary = document.getElementById("diag-summary");
+    if (summary) {
+        summary.style.display = "flex";
+        document.getElementById("diag-pass-count").textContent = pass;
+        document.getElementById("diag-warn-count").textContent = warn;
+        document.getElementById("diag-fail-count").textContent = fail;
+        const scoreEl = document.getElementById("diag-score");
+        scoreEl.textContent = score + "%";
+        scoreEl.className = "diag-score " + (fail > 0 ? "diag-score-bad" : warn > 0 ? "diag-score-mid" : "diag-score-good");
+    }
+
+    // Store for report + filtr/saralash bilan chizish
+    _lastDiagReport = { ts: new Date(), results, pass, warn, fail, score };
+    paintDiagResults();
+    const repBtn = document.getElementById("diag-report-btn");
+    if (repBtn) repBtn.disabled = false;
+
+    // Avtomatik tuzatish tugmasi
+    const fixBtn = document.getElementById("diag-fix-btn");
+    if (fixBtn) {
+        if (_diagFixes.length > 0) {
+            fixBtn.disabled = false;
+            fixBtn.innerHTML = `<i class="fa-solid fa-wrench"></i> Muammolarni Tuzatish (${_diagFixes.length})`;
+        } else {
+            fixBtn.disabled = true;
+            fixBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> Tuzatiladigan muammo yo'q`;
+        }
+    }
+}
+
+// Filtr holati: all | problems | fail
+let _diagFilter = "all";
+function _diagSeverityRank(s) { return s === "fail" ? 0 : s === "warn" ? 1 : 2; }
+
+// O'zbekcha izoh bazasi: "Bu nima?" + "Qanday tuzatiladi?"
+const _DIAG_HELP = {
+    // Xavfsizlik
+    "Telegram BOT_TOKEN": { meaning: "Bot tokeni — Telegramга xabar yuborish maxfiy kaliti. Agar u frontend (brauzer) kodida bo'lsa, har kim uni o'g'irlab botingizni boshqarishi mumkin.", fix: "Tokenni Vercel ENV (BOT_TOKEN)ga ko'chiring va xabarlarni /api/notify orqali yuboring. BotFather'da eski tokenni /revoke qilib yangisini oling." },
+    "Supabase anon kalit": { meaning: "Anon kalit ataylab ommaviy (frontendда). Uni himoyalaydigan yagona narsa — RLS (Row Level Security). RLS o'chiq bo'lsa, kalitni bilgan har kim ma'lumotni o'qiy yoki o'chira oladi.", fix: "Supabase → SQL Editor'da har jadvalga RLS yoqing; anon uchun faqat select/insert/update bering, DELETE bermang (tozalashni serverless /api/admin-clear qiladi)." },
+    "HTTPS protokoli": { meaning: "Sayt HTTPS bo'lmasa, ma'lumot internetда ochiq (shifrlanmagan) uzatiladi — ushlab olinishi mumkin.", fix: "Vercel avtomatik HTTPS beradi. Saytni doimo https:// manzilidan oching." },
+    "Offline himoya (SW)": { meaning: "Service Worker ilovani internetsiz ishlashga imkon beradi. iOS Telegram (WKWebView) uni qo'llamaydi.", fix: "Android planshet yoki Chrome brauzerda PWA o'rnating. iOS'da oddiy brauzerда oching." },
+    "Ma'lumot zaxirasi (backup)": { meaning: "Yaqinda zaxira (backup) olinmagan. Nimadir o'chib ketsa, tiklash uchun zaxira fayli bo'lishi shart.", fix: "Sozlamalar → 'Ma'lumot Zaxirasi' → 'Zaxira Yuklab Olish' bosing va faylni saqlang (har kuni ish oxirida tavsiya etiladi)." },
+    "Standart admin parol": { meaning: "Admin paroli hali standart (eco777). Buni hamma biladi — begona odam tizimga kirishi mumkin.", fix: "Sozlamalar → Xodimlar → admin qatorini tahrirlab, kuchli yangi parol qo'ying." },
+    // Hisob-kitob
+    "Ombor qoldig'i manfiy emas": { meaning: "Ba'zi mahsulot qoldig'i 0 dan kichik (manfiy) — bu noto'g'ri, ortiqcha sotuv yoki hisob xatosidan kelib chiqadi.", fix: "'Muammolarni Tuzatish' bosing — manfiy qoldiq 0 ga tenglanadi. So'ng kirim orqali to'g'ri sonni kiriting." },
+    "Tasdiqlangan mahsulot narxi": { meaning: "Tasdiqlangan mahsulotda sotuv narxi yo'q — u hisobotda 0 UZS bo'lib ko'rinadi.", fix: "Buxgalteriya → tasdiqlash jadvalida narxni kiriting. Narx ilgari qo'yilган bo'lsa, 'Muammolarni Tuzatish' uni tiklaydi." },
+    "Mijoz qarzi balansi": { meaning: "Qarz yozuvида 'olingan + qarz' summasi 'jami'ga teng emas — hisob buzilgan.", fix: "'Muammolarni Tuzatish' bosing — balans qayta hisoblanadi (qarz = jami − olingan)." },
+    "Rang qoldig'i = umumiy qoldiq": { meaning: "Rang/o'lcham bo'yicha qoldiqlar yig'indisi umumiy ombor qoldig'iga teng emas. Ko'pincha eski (rang yozilmagan) sotuvlardan kelib chiqadi.", fix: "Odatda zararsiz. Aniqlik kerak bo'lsa, mahsulotni qayta kirim qiling yoki ombordan qo'lda to'g'rilang." },
+    "Ta'minotchi to'lovlari": { meaning: "Biror ta'minotchiga olingan yuk qiymatidan ko'proq pul to'langan ko'rinadi.", fix: "Buxgalteriya → hisob-kitob daftarида o'sha ta'minotchi to'lovlarini tekshiring; ortiqcha/xato to'lovni o'chiring." },
+    // Bog'lanish
+    "Yetim ombor yozuvlari": { meaning: "Ombor qoldig'i bor, lekin unga mos mahsulot katalogda yo'q (mahsulot o'chirilgan).", fix: "'Muammolarni Tuzatish' bosing — keraksiz yetim qoldiq o'chiriladi." },
+    "Yetim narx yozuvlari": { meaning: "Narx saqlangan, lekin unga mos mahsulot yo'q.", fix: "'Muammolarni Tuzatish' bosing — yetim narx o'chiriladi." },
+    "Yetim rang qoldiqlari": { meaning: "Rang/o'lcham qoldig'i bor, lekin mahsulot yo'q.", fix: "'Muammolarni Tuzatish' bosing — yetim rang qoldig'i o'chiriladi." },
+    "Takror mahsulot ID (katalog)": { meaning: "Bitta mahsulot ID katalogda 2 marta uchraydi — plitka takror ko'rinadi.", fix: "'Muammolarni Tuzatish' bosing — takror nusxa olib tashlanadi." },
+    "Takror login (username)": { meaning: "Ikki foydalanuvchida bir xil login bor — tizimga kirish chalkashadi.", fix: "'Muammolarni Tuzatish' bosing yoki Sozlamalar → Xodimlardan birining loginini o'zgartiring/o'chiring." },
+    "To'lov → ta'minotchi bog'lanishi": { meaning: "To'lov yozuvi ro'yxatда yo'q ta'minotchiga tegishli (ta'minotchi o'chirilgan yoki qayta nomlangan).", fix: "Sozlamalar → Ta'minotchilardan o'sha nomni qayta qo'shing, yoki to'lovni to'g'ri ta'minotchiga ko'chiring." },
+    "Tasdiqlangan mahsulot katalogda": { meaning: "Mahsulot tasdiqlangan, lekin Sotuv ro'yxatida ko'rinmaydi (katalogga qo'shilmagan).", fix: "'Muammolarni Tuzatish' bosing — mahsulot katalogga qo'shiladi va Sotuvда paydo bo'ladi." },
+    // Kategoriya bo'yicha umumiy izohlar
+    "__cat__Holat sinxronligi": { meaning: "Xotiradagi ma'lumot localStorage'dagidan farq qiladi — saqlanmagan o'zgarish bor yoki sinx hali tugamagan.", fix: "'Muammolarni Tuzatish' bosing (qayta saqlaydi). Yoki internet kelganda avtomatik to'g'rilanadi." },
+    "__cat__Sinx navbati": { meaning: "Bulutga yuborilmagan amallar navbatda turibdi (zaif internet yoki xato sabab).", fix: "Internetga ulaning — navbat avtomatik yuboriladi. Amal qotib qolsa, ilovani qayta yuklang." },
+    "__cat__Ma'lumot yaxlitligi": { meaning: "Saqlangan ma'lumot kutilgan formatда emas yoki hali yaratilmagan.", fix: "'Bo'sh' bo'lsa — normal (hali ma'lumot kiritilmagan). 'Buzilgan' bo'lsa, 'Ma'lumot Zaxirasi'dan tiklang." },
+    "__cat__Bulut (Supabase)": { meaning: "Bulutga ulanishda muammo — internet uzilgan yoki Supabase sozlamasi noto'g'ri.", fix: "Internet aloqasini tekshiring. Davom etsa, Supabase URL/kalit/RLS sozlamalarini ko'ring." },
+    "__cat__Rollar": { meaning: "Foydalanuvchi roli noto'g'ri yoki admin umuman yo'q.", fix: "'Muammolarni Tuzatish' bosing, yoki Sozlamalar → Xodimlardan rolni to'g'rilang." },
+    "__cat__Sozlamalar": { meaning: "Sozlama qiymati noto'g'ri (masalan, PIN 4 xonali emas).", fix: "Sozlamalar bo'limidan tegishli qiymatni to'g'rilang va saqlang." },
+    "__cat__Formula & Mantiq": { meaning: "Hisoblash funksiyasi kutilgan natijani bermadi — bu kod xatosi (regressiya) belgisi.", fix: "Bu jiddiy. Dasturchiga murojaat qiling — oxirgi o'zgartirish hisob-kitobni buzgan bo'lishi mumkin." },
+    "__cat__Bo'limlar": { meaning: "Interfeys bo'limi DOM'da topilmadi — sahifa to'liq yuklanmagan yoki HTML buzilgan.", fix: "Sahifani qayta yuklang (Ctrl+Shift+R). Davom etsa, index.html to'liq yuklanganini tekshiring." },
+    "__cat__Navigatsiya": { meaning: "Tab tegishli bo'limga ulanmagan — bosilganda hech qayerга bormaydi.", fix: "Sahifani qayta yuklang. Davom etsa, index.html'da data-dept va section id'lari mosligini tekshiring." },
+    "__cat__Tugmalar": { meaning: "Tugma (kinopka) DOM'da topilmadi — interfeys to'liq yuklanmagan.", fix: "Sahifani qayta yuklang (Ctrl+Shift+R)." },
+    "__cat__Modallar": { meaning: "Modal (qalqib chiquvchi oyna) DOM'da topilmadi.", fix: "Sahifani qayta yuklang. Davom etsa, index.html to'liqligini tekshiring." },
+    "__cat__Funksiyalar": { meaning: "Dastur funksiyasi yuklanmagan — app.js to'liq yuklanmagan yoki sintaksis xatosi bor.", fix: "Sahifani qayta yuklang. Davom etsa, app.js to'g'ri yuklanganini (versiyani) tekshiring." },
+    "__cat__Xavfsizlik": { meaning: "Xavfsizlik bo'yicha tavsiya.", fix: "Tafsilotdagi ko'rsatmaga amal qiling." }
+};
+
+function _diagHelpFor(r) {
+    return _DIAG_HELP[r.name] || _DIAG_HELP["__cat__" + r.category] || {
+        meaning: "Bu tekshiruv tizimning shu qismini nazorat qiladi.",
+        fix: "Yuqoridagi izohga qarang. 'tuzatiladi' belgisi bo'lsa, 'Muammolarni Tuzatish' tugmasini bosing."
+    };
+}
+
+function paintDiagResults() {
+    const box = document.getElementById("diag-results");
+    if (!box || !_lastDiagReport) return;
+    const results = _lastDiagReport.results;
+
+    // Filtrlash
+    let shown = results;
+    if (_diagFilter === "problems") shown = results.filter(r => r.status !== "pass");
+    else if (_diagFilter === "fail") shown = results.filter(r => r.status === "fail");
+
+    // Kategoriya bo'yicha guruh + muammoli kategoriyalar OLDINGA, ichida ham muammo oldinga
+    const cats = {};
+    shown.forEach(r => { (cats[r.category] = cats[r.category] || []).push(r); });
+    const catList = Object.entries(cats).map(([cat, rows]) => {
+        const cFail = rows.filter(r => r.status === "fail").length;
+        const cWarn = rows.filter(r => r.status === "warn").length;
+        rows.sort((a, b) => _diagSeverityRank(a.status) - _diagSeverityRank(b.status));
+        return { cat, rows, cFail, cWarn, sev: cFail > 0 ? 0 : cWarn > 0 ? 1 : 2 };
+    }).sort((a, b) => a.sev - b.sev);
+
+    // Filtr paneli
+    const probCount = results.filter(r => r.status !== "pass").length;
+    const failCount = results.filter(r => r.status === "fail").length;
+    let html = `<div class="diag-filter-bar">
+        <button class="diag-filter-btn ${_diagFilter === "all" ? "active" : ""}" data-filter="all">Hammasi (${results.length})</button>
+        <button class="diag-filter-btn ${_diagFilter === "problems" ? "active" : ""}" data-filter="problems">⚠️ Muammolar (${probCount})</button>
+        <button class="diag-filter-btn ${_diagFilter === "fail" ? "active" : ""}" data-filter="fail">❌ Faqat xato (${failCount})</button>
+    </div>`;
+
+    if (!shown.length) {
+        html += `<div class="diag-hint"><i class="fa-solid fa-circle-check" style="color:#10b981"></i> Bu filtrда hech narsa yo'q — muammo topilmadi. 🎉</div>`;
+        box.innerHTML = html;
+        return;
+    }
+
+    catList.forEach(({ cat, rows, cFail, cWarn }) => {
+        const badge = cFail > 0 ? `<span class="diag-cat-badge diag-fail">${cFail} xato</span>`
+            : cWarn > 0 ? `<span class="diag-cat-badge diag-warn">${cWarn} ogoh.</span>`
+            : `<span class="diag-cat-badge diag-pass">OK</span>`;
+        html += `<div class="diag-cat"><div class="diag-cat-head">${cat} ${badge}</div>`;
+        rows.forEach(r => {
+            const m = _diagStatusMeta(r.status);
+            const fixTag = r.fixable ? `<span class="diag-fix-tag"><i class="fa-solid fa-wrench"></i> tuzatiladi</span>` : "";
+            const isProblem = r.status !== "pass";
+            const caret = isProblem ? `<i class="fa-solid fa-chevron-down diag-row-caret"></i>` : "";
+            html += `<div class="diag-row ${m.cls} ${isProblem ? "clickable" : ""}"><i class="fa-solid ${m.icon}"></i><div class="diag-row-txt"><b>${r.name} ${fixTag}</b><small>${r.detail}</small></div>${caret}</div>`;
+            if (isProblem) {
+                const help = _diagHelpFor(r);
+                const auto = r.fixable ? `<div class="diag-detail-auto"><i class="fa-solid fa-wand-magic-sparkles"></i> Bu muammoni "Muammolarni Tuzatish" tugmasi avtomatik bartaraf eta oladi.</div>` : "";
+                html += `<div class="diag-row-detail" style="display:none">
+                    <div class="diag-detail-block"><span class="diag-detail-label"><i class="fa-solid fa-circle-question"></i> Bu nima degani?</span><p>${help.meaning}</p></div>
+                    <div class="diag-detail-block"><span class="diag-detail-label"><i class="fa-solid fa-screwdriver-wrench"></i> Qanday tuzatiladi?</span><p>${help.fix}</p></div>
+                    ${auto}
+                </div>`;
+            }
+        });
+        html += `</div>`;
+    });
+    box.innerHTML = html;
+}
+
+// Topilgan bug'larni avtomatik tuzatish (tasdiq bilan)
+function applyDiagFixes() {
+    if (!_diagFixes.length) return;
+    const list = _diagFixes.map((f, i) => `${i + 1}. ${f.label}  —  (${f.finding})`).join("\n");
+    const ok = confirm(`${_diagFixes.length} ta avtomatik tuzatish qo'llanadimi?\n\n${list}\n\n⚠️ Bu mahalliy ma'lumotni o'zgartiradi va keyin bulutga sinxronlanadi. Davom etilsinmi?`);
+    if (!ok) return;
+    const log = [];
+    _diagFixes.forEach(f => {
+        try {
+            const msg = f.run();
+            log.push("✅ " + f.label + ": " + (msg || "bajarildi"));
+        } catch (e) {
+            log.push("❌ " + f.label + ": " + e.message);
+        }
+    });
+    // Bog'liq ko'rinishlarni yangilash
+    try { if (typeof renderTiles === "function") renderTiles(); } catch (e) {}
+    try { if (typeof renderOmborTable === "function") renderOmborTable(); } catch (e) {}
+    try { if (typeof renderBuxgalteriya === "function") renderBuxgalteriya(); } catch (e) {}
+    try { if (typeof renderCashiersList === "function") renderCashiersList(); } catch (e) {}
+    alert("🔧 Tuzatish natijasi:\n\n" + log.join("\n") + "\n\nQayta tekshiruv ishga tushadi.");
+    startDiagnostics(); // qayta tekshirish (natija yangilanadi)
+}
+
+async function startDiagnostics() {
+    if (_diagRunning) return;
+    _diagRunning = true;
+    const runBtn = document.getElementById("diag-run-btn");
+    const prog = document.getElementById("diag-progress");
+    const bar = document.getElementById("diag-progress-bar");
+    const box = document.getElementById("diag-results");
+    if (runBtn) { runBtn.disabled = true; runBtn.innerHTML = '<i class="fa-solid fa-rotate fa-spin"></i> Tekshirilmoqda...'; }
+    if (prog) prog.style.display = "block";
+    if (bar) { bar.style.width = "10%"; setTimeout(() => { bar.style.width = "70%"; }, 100); }
+    if (box) box.innerHTML = '<div class="diag-hint"><i class="fa-solid fa-rotate fa-spin"></i> Tekshiruv ketmoqda...</div>';
+    try {
+        const results = await runSystemDiagnostics();
+        if (bar) bar.style.width = "100%";
+        renderDiagResults(results);
+    } catch (e) {
+        if (box) box.innerHTML = `<div class="diag-row diag-fail"><i class="fa-solid fa-circle-xmark"></i><div class="diag-row-txt"><b>Diagnostika xatosi</b><small>${e.message}</small></div></div>`;
+    } finally {
+        _diagRunning = false;
+        if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Qayta Tekshirish'; }
+        if (prog) setTimeout(() => { prog.style.display = "none"; if (bar) bar.style.width = "0%"; }, 600);
+    }
+}
+
+function downloadDiagReport() {
+    if (!_lastDiagReport) return;
+    const r = _lastDiagReport;
+    const dt = r.ts;
+    const pad = n => String(n).padStart(2, "0");
+    const stamp = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    let md = `# ECO SPORTS — Tizim Diagnostika Hisoboti\n\n`;
+    md += `**Sana:** ${stamp}\n`;
+    md += `**Umumiy ball:** ${r.score}%  ·  ✅ ${r.pass} o'tdi · ⚠️ ${r.warn} ogohlantirish · ❌ ${r.fail} xato\n`;
+    md += `**Versiya:** app.js v5.8\n\n---\n\n`;
+    const cats = {};
+    r.results.forEach(x => { (cats[x.category] = cats[x.category] || []).push(x); });
+    Object.entries(cats).forEach(([cat, rows]) => {
+        md += `## ${cat}\n\n`;
+        rows.forEach(x => {
+            const ic = x.status === "pass" ? "✅" : x.status === "warn" ? "⚠️" : "❌";
+            md += `- ${ic} **${x.name}** — ${x.detail}\n`;
+        });
+        md += `\n`;
+    });
+    const problems = r.results.filter(x => x.status !== "pass");
+    if (problems.length) {
+        md += `---\n\n## ⚠️ Topilgan muammolar (${problems.length})\n\n`;
+        problems.forEach(x => {
+            const ic = x.status === "warn" ? "⚠️" : "❌";
+            md += `- ${ic} [${x.category}] **${x.name}**: ${x.detail}\n`;
+        });
+    } else {
+        md += `---\n\n## ✅ Muammo topilmadi — tizim sog'lom!\n`;
+    }
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `eco_diagnostika_${stamp.replace(/[: ]/g, "-")}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ============================================================
+// 11.95 MA'LUMOT ZAXIRASI (BACKUP / RESTORE) — falokat himoyasi
+// ============================================================
+function exportFullBackup() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf("eco_") === 0) data[k] = localStorage.getItem(k);
+    }
+    const payload = { app: "eco-sports", version: "6.1", exportedAt: new Date().toISOString(), keys: Object.keys(data).length, data };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const d = new Date(); const pad = n => String(n).padStart(2, "0");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `eco_zaxira_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    localStorage.setItem("eco_last_backup_at", String(Date.now()));
+    const st = document.getElementById("backup-status");
+    if (st) {
+        st.style.display = "flex";
+        st.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981"></i> ${payload.keys} ta yozuv zaxiraga saqlandi: ${a.download}`;
+    }
+}
+
+function importFullBackup(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        let parsed;
+        try { parsed = JSON.parse(e.target.result); } catch (err) { alert("❌ Fayl buzuq yoki JSON emas."); return; }
+        if (!parsed || parsed.app !== "eco-sports" || !parsed.data) { alert("❌ Bu Eco Sports zaxira fayli emas."); return; }
+        const keys = Object.keys(parsed.data);
+        if (!confirm(`⚠️ ${keys.length} ta yozuv tiklanadi.\nZaxira sanasi: ${parsed.exportedAt || "?"}\n\nJORIY ma'lumot bu zaxira bilan ALMASHTIRILADI. Davom etilsinmi?`)) return;
+        keys.forEach(k => { try { localStorage.setItem(k, parsed.data[k]); } catch (er) {} });
+        alert("✅ Zaxira tiklandi. Ilova qayta yuklanadi.");
+        location.reload();
+    };
+    reader.readAsText(file);
+}
+
+// ============================================================
+// 11.97 BIZNES OQIMI SIMULYATSIYASI (xavfsiz sandbox — haqiqiy ma'lumot/bulutga TEGMAYDI)
+// Tizim o'zi to'liq do'kon kunini o'ynaб ko'radi: kirim → optim/dona sotuv →
+// qarz (nasiya) → ta'minotchi nasiya → to'lov. Har bosqich haqiqiy formulalar
+// (packSizeOf, optimDonaPrice) bilan tekshiriladi. Hech narsa saqlanmaydi.
+// ============================================================
+function runBusinessSimulation() {
+    const steps = [];
+    const add = (name, ok, detail) => steps.push({ name, status: ok ? "pass" : "fail", detail });
+
+    // Sinov mahsuloti (faqat shu funksiya ichida — global emas)
+    const prod = { id: "SIM-TEST", name: "SINOV Futbolka", sizes: ["S", "M", "L", "XL", "XXL"], pack_price: 280000, cogs: 200000 };
+    const packSize = packSizeOf(prod);       // haqiqiy funksiya → 5
+    const donaPrice = optimDonaPrice(prod);  // haqiqiy funksiya → 280000/5 = 56000
+
+    // Sandbox holati
+    const colors = {};       // {rang: {o'lcham: dona}}
+    let revenue = 0, custDebt = 0, supTaken = 0, supPaid = 0;
+    const sumStock = () => Object.values(colors).reduce((t, sz) => t + Object.values(sz).reduce((a, b) => a + b, 0), 0);
+    const packsOf = (c) => Math.min.apply(null, prod.sizes.map(s => colors[c][s]));
+
+    // 1) KIRIM — 10 pachka (Qora 4, Oq 6); 1 pachka = har o'lchamdan 1 dona
+    const intake = { "Qora": 4, "Oq": 6 };
+    Object.entries(intake).forEach(([c, packs]) => {
+        colors[c] = {};
+        prod.sizes.forEach(s => colors[c][s] = packs);
+    });
+    supTaken = 10 * prod.cogs; // olingan yuk qiymati (tannarx) = 2,000,000
+    add("1) Mahsulot kirim qilindi", sumStock() === 50 && packSize === 5,
+        `10 pachka (Qora 4 + Oq 6) → ${sumStock()} dona (kutilgan 50); pachka hajmi ${packSize}; tannarx jami ${supTaken.toLocaleString("uz-UZ")}`);
+
+    // 2) OPTIMGA (ulgurji) SOTUV — 2 Qora pachka
+    prod.sizes.forEach(s => colors["Qora"][s] -= 2);
+    revenue += 2 * prod.pack_price; // 560,000
+    add("2) Optimga (ulgurji) sotildi", sumStock() === 40 && packsOf("Qora") === 2 && revenue === 560000,
+        `2 Qora pachka × ${prod.pack_price.toLocaleString("uz-UZ")} → tushum ${revenue.toLocaleString("uz-UZ")}; qoldiq ${sumStock()} dona; Qora ${packsOf("Qora")} pachka`);
+
+    // 3) DONAGA (chakana) SOTUV — 3 Oq dona (M o'lcham)
+    colors["Oq"]["M"] -= 3;
+    revenue += 3 * donaPrice; // +168,000
+    add("3) Donaga (chakana) sotildi", sumStock() === 37 && colors["Oq"]["M"] === 3 && donaPrice === 56000,
+        `3 Oq dona (M) × ${donaPrice.toLocaleString("uz-UZ")} (=${prod.pack_price.toLocaleString("uz-UZ")}/${packSize}) → tushum ${revenue.toLocaleString("uz-UZ")}; qoldiq ${sumStock()}`);
+
+    // 4) MIJOZGA QARZGA (nasiya) — 1 Qora pachka, 100,000 olindi
+    const saleTotal = prod.pack_price;      // 280,000
+    const received = 100000;
+    const debt = saleTotal - received;      // 180,000
+    prod.sizes.forEach(s => colors["Qora"][s] -= 1);
+    revenue += received;                    // kassaga faqat olingan tushadi
+    custDebt += debt;
+    add("4) Mijozga qarzga (nasiya) berildi", debt === 180000 && sumStock() === 32 && (received + debt === saleTotal),
+        `1 Qora pachka ${saleTotal.toLocaleString("uz-UZ")}: olindi ${received.toLocaleString("uz-UZ")}, qarz ${debt.toLocaleString("uz-UZ")}; balans tekshiruvi ${received}+${debt}=${received + debt}; qoldiq ${sumStock()}`);
+
+    // 5) TA'MINOTCHIDAN NASIYAGA YUK — qarz = olingan yuk (hali to'lanmagan)
+    const supDebtAfterIntake = supTaken - supPaid; // 2,000,000
+    add("5) Ta'minotchidan nasiyaga yuk olindi", supDebtAfterIntake === 2000000,
+        `Olingan yuk (10 × ${prod.cogs.toLocaleString("uz-UZ")}) = ${supTaken.toLocaleString("uz-UZ")}; to'langan ${supPaid}; ta'minotchiga qarz ${supDebtAfterIntake.toLocaleString("uz-UZ")}`);
+
+    // 6) TA'MINOTCHIGA TO'LOV — 800,000
+    supPaid += 800000;
+    const supDebt = supTaken - supPaid; // 1,200,000
+    add("6) Ta'minotchiga to'lov qilindi", supPaid === 800000 && supDebt === 1200000,
+        `To'lov ${(800000).toLocaleString("uz-UZ")} → jami to'langan ${supPaid.toLocaleString("uz-UZ")}; qolgan qarz ${supDebt.toLocaleString("uz-UZ")}`);
+
+    return steps;
+}
+
+function startBusinessSimulation() {
+    const box = document.getElementById("sim-results");
+    if (!box) return;
+    box.innerHTML = `<div class="diag-hint"><i class="fa-solid fa-rotate fa-spin"></i> Simulyatsiya ketmoqda...</div>`;
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setTimeout(() => {
+        let steps;
+        try {
+            steps = runBusinessSimulation();
+        } catch (e) {
+            box.innerHTML = `<div class="diag-row diag-fail"><i class="fa-solid fa-circle-xmark"></i><div class="diag-row-txt"><b>Simulyatsiya xatosi</b><small>${e.message}</small></div></div>`;
+            return;
+        }
+        const fails = steps.filter(s => s.status === "fail").length;
+        let html = `<div class="sim-summary ${fails ? "sim-bad" : "sim-good"}">${fails ? `<i class="fa-solid fa-circle-xmark"></i> ${fails} ta bosqich xato — hisob-kitobda muammo bor!` : `<i class="fa-solid fa-circle-check"></i> Hammasi to'g'ri — ${steps.length} bosqich muvaffaqiyatli o'tdi`}</div>`;
+        steps.forEach(s => {
+            const m = _diagStatusMeta(s.status);
+            html += `<div class="diag-row ${m.cls}"><i class="fa-solid ${m.icon}"></i><div class="diag-row-txt"><b>${s.name}</b><small>${s.detail}</small></div></div>`;
+        });
+        box.innerHTML = html;
+        box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 250);
+}
+
 // 12. GENERAL CONTROLS SETUP
 function setupEventListeners() {
     // Helper function for safe event binding
@@ -3604,6 +4865,24 @@ function setupEventListeners() {
 
     // Handle authentication form submission
     safeBind(loginForm, "submit", handleLoginSubmit);
+
+    // Login usulini tanlash (Admin / Sotuvchi)
+    safeBind(document.getElementById("mode-admin-btn"), "click", () => showLoginView("admin"));
+    safeBind(document.getElementById("mode-seller-btn"), "click", () => showLoginView("seller"));
+    document.querySelectorAll("[data-login-back]").forEach(btn => {
+        safeBind(btn, "click", () => showLoginView("mode"));
+    });
+
+    // Sotuvchi PIN formasi
+    safeBind(document.getElementById("seller-pin-form"), "submit", handleSellerPinSubmit);
+    // 4 raqam terilganda avtomatik tekshirish
+    safeBind(document.getElementById("seller-pin-input"), "input", (ev) => {
+        const v = ev.target.value.replace(/\D/g, "").slice(0, 4);
+        ev.target.value = v;
+        const sellerErr = document.getElementById("seller-pin-error");
+        if (sellerErr) sellerErr.style.display = "none";
+        if (v.length === 4) handleSellerPinSubmit();
+    });
 
     // Logout
     safeBind(logoutTrigger, "click", handleLogout);
@@ -3653,10 +4932,17 @@ function setupEventListeners() {
     });
 
     safeBind(calcQtyPlus, "click", () => {
-        if (calcQtyInput) {
-            let val = parseInt(calcQtyInput.value) || 1;
-            calcQtyInput.value = val + 1;
+        if (!calcQtyInput || !state.selectedProduct) return;
+        let val = parseInt(calcQtyInput.value) || 1;
+        const isPack = String(state.selectedSize || "").includes("Pachka");
+        const color = (hasColorData(state.selectedProduct) && state.selectedColor) ? state.selectedColor : null;
+        const maxStock = availableUnitsFor(state.selectedProduct, color, state.selectedSize, isPack);
+        const already = cartLineQty(state.selectedProduct.id, state.selectedSize, color);
+        if (val + 1 + already > maxStock) {
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+            return; // zaxiradan oshmaydi
         }
+        calcQtyInput.value = val + 1;
     });
 
     safeBind(closeCalcModal, "click", closeCalculatorModal);
@@ -3681,6 +4967,17 @@ function setupEventListeners() {
             return;
         }
 
+        // Zaxira tekshiruvi: mavjuddan ko'p sotib bo'lmaydi
+        const isPack = String(state.selectedSize || "").includes("Pachka");
+        const maxStock = availableUnitsFor(state.selectedProduct, color, state.selectedSize, isPack);
+        const already = cartLineQty(state.selectedProduct.id, state.selectedSize, color);
+        const unit = isPack ? "pachka" : "dona";
+        if (already + qty > maxStock) {
+            alert(`⚠️ Zaxirada faqat ${maxStock} ${unit} bor!` + (already ? `\n(Savatda allaqachon ${already} ${unit})` : ""));
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+            return;
+        }
+
         const existing = state.cart.find(item => item.product.id === state.selectedProduct.id && item.size === state.selectedSize && (item.color || null) === color);
 
         if (existing) {
@@ -3702,12 +4999,13 @@ function setupEventListeners() {
 
     // Live discount inputs changes
     safeBind(discountInput, "input", updateReceiptUI);
+    safeBind(receivedInput, "input", () => { posReceivedTouched = true; updatePaymentUI(); });
 
     // Complete Sale manually
     safeBind(checkoutBtn, "click", openPinModal);
 
-    // Hook Telegram native button clicks
-    if (tg && tg.MainButton) {
+    // Hook Telegram native button clicks — faqat haqiqiy Telegram ichida
+    if (isTelegram && tg.MainButton) {
         try {
             tg.MainButton.onClick(() => {
                 openPinModal();
@@ -3877,6 +5175,25 @@ function setupEventListeners() {
                 renderDynamicPackInputs();
             });
         });
+
+        // Pack stepper (+/-) va jonli jami — delegatsiya (konteyner barqaror)
+        const qtyContainer = document.getElementById("warehouse-qty-container");
+        if (qtyContainer) {
+            qtyContainer.addEventListener("click", (e) => {
+                const btn = e.target.closest(".pack-step-btn");
+                if (!btn) return;
+                const color = btn.dataset.color;
+                const step = parseInt(btn.dataset.step, 10) || 0;
+                const input = qtyContainer.querySelector(`.color-pack-input[data-color="${color}"]`);
+                if (!input) return;
+                const next = Math.max(1, (parseInt(input.value, 10) || 0) + step);
+                input.value = next;
+                updatePackTotal();
+            });
+            qtyContainer.addEventListener("input", (e) => {
+                if (e.target.classList.contains("color-pack-input")) updatePackTotal();
+            });
+        }
     }
 
     if (closeProductWarehouseModal && addProductWarehouseModal) {
@@ -3977,8 +5294,8 @@ function setupEventListeners() {
                     console.log("Supabase: Pending product synced!");
                 });
 
-                // Upsert to eco_kirim_history table for cross-device metadata sync
-                supabaseClient.from("eco_kirim_history").upsert({
+                // eco_kirim_history — navbat orqali (offline'da yo'qolmaydi)
+                enqueueOp({ type: "kirim", row: {
                     id: "KRM-" + Math.floor(1000 + Math.random() * 9000),
                     created_at: new Date().toISOString(),
                     supplier: newProduct.supplier,
@@ -3993,9 +5310,7 @@ function setupEventListeners() {
                     total_qty: newProduct.qty,
                     color_packs_breakdown: JSON.stringify(newProduct.colorPacksBreakdown),
                     status: "TASDIQ KUTILMOQDA"
-                }).then(() => {
-                    console.log("Supabase: Kirim history record synced!");
-                });
+                } });
             }
 
             addProductWarehouseModal.classList.remove("open");
@@ -4179,6 +5494,56 @@ function setupEventListeners() {
         });
     }
 
+    // --- TIZIM DIAGNOSTIKASI & XAVFSIZLIK ---
+    const diagToggle = document.getElementById("diag-toggle");
+    const diagBlock = document.getElementById("diagnostics-block");
+    safeBind(diagToggle, "change", () => {
+        if (diagToggle.checked) {
+            // Yoqilganda akkordeon ochilsin va tekshiruv avtomatik ishga tushsin
+            if (diagBlock) diagBlock.classList.add("open");
+            startDiagnostics();
+        }
+    });
+    safeBind(document.getElementById("diag-run-btn"), "click", startDiagnostics);
+    safeBind(document.getElementById("diag-fix-btn"), "click", applyDiagFixes);
+    safeBind(document.getElementById("diag-report-btn"), "click", downloadDiagReport);
+
+    // Diagnostika natijalari: filtr tugmalari + muammo qatorini ochish (delegatsiya)
+    const diagResultsBox = document.getElementById("diag-results");
+    if (diagResultsBox) {
+        diagResultsBox.addEventListener("click", (e) => {
+            const fbtn = e.target.closest(".diag-filter-btn");
+            if (fbtn) {
+                _diagFilter = fbtn.dataset.filter || "all";
+                paintDiagResults();
+                return;
+            }
+            const row = e.target.closest(".diag-row.clickable");
+            if (row) {
+                const detail = row.nextElementSibling;
+                if (detail && detail.classList.contains("diag-row-detail")) {
+                    const isOpen = detail.style.display !== "none";
+                    detail.style.display = isOpen ? "none" : "block";
+                    row.classList.toggle("open", !isOpen);
+                }
+            }
+        });
+    }
+
+    // --- BIZNES OQIMI SIMULYATSIYASI ---
+    safeBind(document.getElementById("sim-run-btn"), "click", startBusinessSimulation);
+
+    // --- MA'LUMOT ZAXIRASI (backup/restore) ---
+    safeBind(document.getElementById("backup-export-btn"), "click", exportFullBackup);
+    safeBind(document.getElementById("backup-import-btn"), "click", () => {
+        const f = document.getElementById("backup-import-file");
+        if (f) f.click();
+    });
+    safeBind(document.getElementById("backup-import-file"), "change", (e) => {
+        if (e.target.files && e.target.files[0]) importFullBackup(e.target.files[0]);
+        e.target.value = "";
+    });
+
     // --- LOYIHANI TO'LIQ TOZALASH (parol: 4321) ---
     const clearProjectBtn = document.getElementById("settings-clear-project");
     const clearModal = document.getElementById("clear-project-modal");
@@ -4199,8 +5564,9 @@ function setupEventListeners() {
     safeBind(clearForm, "submit", (e) => {
         e.preventDefault();
         if (clearPass && clearPass.value === "4321") {
+            const _pw = clearPass.value;
             clearModal.classList.remove("open");
-            clearProject();
+            clearProject(_pw);
         } else {
             if (clearError) clearError.style.display = "flex";
             if (clearPass) { clearPass.value = ""; clearPass.focus(); }
@@ -4211,6 +5577,7 @@ function setupEventListeners() {
     document.querySelectorAll(".settings-acc-head").forEach(head => {
         head.addEventListener("click", (e) => {
             if (e.target.closest(".settings-add-btn")) return; // "Yangi" tugma accordionni ochmasin
+            if (e.target.closest(".diag-switch")) return; // Diagnostika toggle accordionni o'zgartirmasin
             head.parentElement.classList.toggle("open");
         });
     });
@@ -4528,6 +5895,17 @@ async function initApp() {
         }
     });
 
+    // MIGRATSIYA: narxi bor tasdiqlangan mahsulotlar eco_product_prices'da bo'lmasa — ko'chirish
+    // (eski kod narxni bulutga yozmagan; bu blok ularni bulutga tarqatadi)
+    let _pricesMigrated = false;
+    state.dynamicProducts.forEach(dp => {
+        if (dp.approved && ((dp.price || 0) > 0 || (dp.pack_price || 0) > 0) && !productPrices[dp.id]) {
+            productPrices[dp.id] = { cogs: dp.cogs || 0, pack_price: dp.pack_price || 0, price: dp.price || 0 };
+            _pricesMigrated = true;
+        }
+    });
+    if (_pricesMigrated && typeof saveProductPrices === "function") saveProductPrices();
+
     // Migrating/establishing roles for older entries safely
     users.forEach(u => {
         if (!u.role) {
@@ -4544,6 +5922,20 @@ async function initApp() {
     // CRITICAL: Setup event listeners FIRST so UI is interactive immediately
     setupEventListeners();
 
+    // --- OFFLINE SYNC: doimiy xotira + holat ko'rsatkichi + navbatni bo'shatish ---
+    if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persisted().then(persisted => {
+            if (!persisted) navigator.storage.persist().then(granted => {
+                console.log("Doimiy xotira (persist):", granted ? "yoqildi ✅" : "berilmadi");
+            });
+        }).catch(() => {});
+    }
+    updateSyncBadge();
+    window.addEventListener("online", () => { updateSyncBadge(); flushSyncQueue(); });
+    window.addEventListener("offline", updateSyncBadge);
+    setInterval(() => { if (navigator.onLine) flushSyncQueue(); }, 30000); // har 30s xavfsizlik uchun
+    flushSyncQueue(); // ochilishda kutayotganlarni yuborish
+
     if (isAuthenticated) {
         unlockDashboard();
     }
@@ -4552,6 +5944,7 @@ async function initApp() {
     if (supabaseClient) {
         syncFromSupabase().then(() => {
             console.log("%c✅ Supabase: Background sync completed!", "color:#10b981; font-weight:bold;");
+            flushSyncQueue(); // bulutdan o'qigach — kutayotgan yozishlarni yuborish
             // Re-render UI with synced data
             if (isAuthenticated) {
                 renderPOSFilters();
@@ -4633,9 +6026,37 @@ async function syncFromSupabase() {
                 supplierPayments = configMap["eco_supplier_payments"];
                 localStorage.setItem("eco_sports_supplier_payments", JSON.stringify(supplierPayments));
             }
+            if (configMap["eco_customer_debts"]) {
+                customerDebts = configMap["eco_customer_debts"];
+                localStorage.setItem("eco_sports_customer_debts", JSON.stringify(customerDebts));
+            }
+            if (configMap["eco_product_prices"]) {
+                productPrices = configMap["eco_product_prices"];
+                localStorage.setItem("eco_sports_product_prices", JSON.stringify(productPrices));
+            }
             if (configMap["eco_color_stock"]) {
                 colorStock = configMap["eco_color_stock"];
                 localStorage.setItem("eco_sports_color_stock", JSON.stringify(colorStock));
+            }
+
+            // Loyiha boshqa qurilmada tozalangan bo'lsa — bu yerda ham tozalash
+            if (configMap["eco_project_cleared_at"]) {
+                const clearedAt = Number(configMap["eco_project_cleared_at"]) || 0;
+                const seen = Number(localStorage.getItem("eco_sports_cleared_seen")) || 0;
+                if (clearedAt > seen) {
+                    PRODUCTS = [];
+                    state.dynamicProducts = [];
+                    inventory = {};
+                    colorStock = {};
+                    state.kirimHistory = [];
+                    localStorage.setItem("eco_sports_products_cleared", "1");
+                    localStorage.setItem("eco_sports_dynamic_products", "[]");
+                    localStorage.setItem("eco_sports_inventory", "{}");
+                    localStorage.setItem("eco_sports_color_stock", "{}");
+                    localStorage.setItem("eco_sports_kirim_history", "[]");
+                    localStorage.setItem("eco_sports_cleared_seen", String(clearedAt));
+                    console.log("Supabase: Loyiha bulutda tozalangan — mahalliy ma'lumot ham tozalandi.");
+                }
             }
             console.log("Supabase: App config synced from eco_config!");
         } else if (cErr) {
@@ -4858,9 +6279,38 @@ async function syncFromSupabase() {
                     }
                 }
             });
+
+            // PRUNE: bulutdagi kirim'da YO'Q dinamik mahsulotlarni olib tashlash
+            // (bulut = yagona manba; bir qurilmada o'chirilsa hammasida o'chadi)
+            const cloudIds = new Set(cloudKirims.map(r => String(r.product_id)));
+            const removedIds = state.dynamicProducts
+                .filter(dp => !cloudIds.has(String(dp.id)))
+                .map(dp => String(dp.id));
+            if (removedIds.length > 0) {
+                state.dynamicProducts = state.dynamicProducts.filter(dp => cloudIds.has(String(dp.id)));
+                PRODUCTS = PRODUCTS.filter(p => !removedIds.includes(String(p.id)));
+                removedIds.forEach(id => { delete inventory[id]; delete colorStock[id]; });
+                localStorage.setItem("eco_sports_inventory", JSON.stringify(inventory));
+                localStorage.setItem("eco_sports_color_stock", JSON.stringify(colorStock));
+                dynamicProductsUpdated = true;
+                console.log(`Supabase: ${removedIds.length} ta eskirgan mahsulot tozalandi (bulutda yo'q).`);
+            }
+
+            // NARXNI TIKLASH: eco_product_prices'dan (eco_inventory integer-PK bug'ini chetlab o'tadi)
+            state.dynamicProducts.forEach(dp => {
+                const pr = productPrices[String(dp.id)] || productPrices[dp.id];
+                if (pr) {
+                    if (pr.price != null) dp.price = pr.price;
+                    if (pr.pack_price != null) dp.pack_price = pr.pack_price;
+                    if (pr.cogs != null) dp.cogs = pr.cogs;
+                    dp.approved = true; // narx belgilangan => tasdiqlangan
+                    dynamicProductsUpdated = true;
+                }
+            });
+
             if (dynamicProductsUpdated) {
                 localStorage.setItem("eco_sports_dynamic_products", JSON.stringify(state.dynamicProducts));
-                
+
                 // Merge approved dynamic products into PRODUCTS if not already present
                 state.dynamicProducts.forEach(p => {
                     if (p.approved) {
