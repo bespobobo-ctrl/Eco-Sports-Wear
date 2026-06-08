@@ -2079,7 +2079,7 @@ function openOmborDetail(productId) {
 
 // Haqiqiy tan narxi (COGS): sotilgan har bir mahsulotning ASL tannarxidan hisoblanadi
 // (savdoning 60% taxminiy emas). Mahsulot topilmasa, soldPrice*0.6 zaxira sifatida.
-function calcRealCOGS() {
+function calcRealCOGS(salesArr) {
     let total = 0;
     let matched = 0;
     let estimated = 0;
@@ -2093,7 +2093,7 @@ function calcRealCOGS() {
             || null;
     }
 
-    (state.salesHistory || []).forEach(tx => {
+    ((salesArr || state.salesHistory) || []).forEach(tx => {
         (tx.items || []).forEach(item => {
             const qty = item.qty || 0;
             if (qty <= 0) return;
@@ -2112,6 +2112,231 @@ function calcRealCOGS() {
     });
 
     return { cogs: Math.round(total), matchedQty: matched, estimatedQty: estimated };
+}
+
+// ============================================================
+// SANA BO'YICHA SAVDO HISOBOTI (kun / oy / yil / ixtiyoriy oraliq)
+// salesHistory'dan davr bo'yicha: savdo, tannarx, foyda, qarz, kassir, top mahsulot.
+// Ma'lumot saqlanadi (localStorage + bulut), shuning uchun bir oy/yildan keyin ham olinadi.
+// ============================================================
+let dateReportState = { from: null, to: null, label: "Hammasi", last: null };
+
+// "DD.MM.YYYY HH:MM" yoki "YYYY-MM-DD ..." → Date (kun aniqligida) yoki null
+function _saleDateObj(ts) {
+    if (!ts) return null;
+    let m = String(ts).match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/); // DD.MM.YYYY
+    if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    m = String(ts).match(/(\d{4})-(\d{2})-(\d{2})/); // YYYY-MM-DD
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return null;
+}
+function _ymd(d) { const p = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); }
+
+function setDateReportRange(kind) {
+    const now = new Date();
+    const y = now.getFullYear(), mo = now.getMonth(), da = now.getDate();
+    let from = null, to = null, label = "Hammasi";
+    if (kind === "today") { from = new Date(y, mo, da); to = new Date(y, mo, da); label = "Bugun"; }
+    else if (kind === "week") { from = new Date(y, mo, da - 6); to = new Date(y, mo, da); label = "Oxirgi 7 kun"; }
+    else if (kind === "month") { from = new Date(y, mo, 1); to = new Date(y, mo + 1, 0); label = "Bu oy"; }
+    else if (kind === "lastmonth") { from = new Date(y, mo - 1, 1); to = new Date(y, mo, 0); label = "O'tgan oy"; }
+    else if (kind === "year") { from = new Date(y, 0, 1); to = new Date(y, 11, 31); label = "Bu yil (" + y + ")"; }
+    else { from = null; to = null; label = "Hammasi"; }
+    dateReportState.from = from; dateReportState.to = to; dateReportState.label = label;
+    const fEl = document.getElementById("date-report-from"), tEl = document.getElementById("date-report-to");
+    if (fEl) fEl.value = from ? _ymd(from) : "";
+    if (tEl) tEl.value = to ? _ymd(to) : "";
+    document.querySelectorAll(".date-q-btn").forEach(b => b.classList.toggle("active", b.dataset.range === kind));
+    renderDateReport();
+}
+
+function applyCustomDateRange() {
+    const fEl = document.getElementById("date-report-from"), tEl = document.getElementById("date-report-to");
+    const fv = fEl && fEl.value ? new Date(fEl.value + "T00:00:00") : null;
+    const tv = tEl && tEl.value ? new Date(tEl.value + "T00:00:00") : null;
+    dateReportState.from = fv; dateReportState.to = tv;
+    dateReportState.label = (fv ? _ymd(fv) : "boshidan") + " — " + (tv ? _ymd(tv) : "oxirigacha");
+    document.querySelectorAll(".date-q-btn").forEach(b => b.classList.remove("active"));
+    renderDateReport();
+}
+
+function salesInPeriod() {
+    const from = dateReportState.from, to = dateReportState.to;
+    return (state.salesHistory || []).filter(tx => {
+        if (!from && !to) return true;
+        const d = _saleDateObj(tx.timestamp);
+        if (!d) return false;
+        if (from && d < new Date(from.getFullYear(), from.getMonth(), from.getDate())) return false;
+        if (to && d > new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59)) return false;
+        return true;
+    });
+}
+
+function computeDateReport() {
+    const sales = salesInPeriod();
+    let revenue = 0, received = 0, debt = 0, units = 0;
+    const byCashier = {}, byProduct = {};
+    sales.forEach(tx => {
+        const total = Number(tx.totalPaid) || 0;
+        revenue += total;
+        received += Number(tx.received != null ? tx.received : total) || 0;
+        debt += Number(tx.debt) || 0;
+        units += Number(tx.itemCount) || 0;
+        const c = tx.cashier || "—";
+        if (!byCashier[c]) byCashier[c] = { count: 0, total: 0 };
+        byCashier[c].count++; byCashier[c].total += total;
+        (tx.items || []).forEach(it => {
+            const nm = (it.name || "").replace(/\s*\[cogs:\d+,pack:\d+\]/, "").trim() || "—";
+            if (!byProduct[nm]) byProduct[nm] = { qty: 0, revenue: 0 };
+            byProduct[nm].qty += Number(it.qty) || 0;
+            byProduct[nm].revenue += (Number(it.qty) || 0) * (Number(it.soldPrice) || 0);
+        });
+    });
+    const cogs = calcRealCOGS(sales).cogs;
+    const grossProfit = revenue - cogs;
+    const topProducts = Object.entries(byProduct).map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue })).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+    const cashiers = Object.entries(byCashier).map(([name, v]) => ({ name, count: v.count, total: v.total })).sort((a, b) => b.total - a.total);
+    const r = { label: dateReportState.label, count: sales.length, revenue, received, debt, units, cogs, grossProfit, topProducts, cashiers, sales };
+    dateReportState.last = r;
+    return r;
+}
+
+function renderDateReport() {
+    const kpiBox = document.getElementById("date-report-kpis");
+    if (!kpiBox) return;
+    const r = computeDateReport();
+    const kpi = (label, val, color) => '<div class="stat-badge-card" style="padding:0.8rem;"><div class="stat-badge-info"><h4 style="font-size:0.7rem;">' + label + '</h4><strong style="font-size:1.05rem;' + (color ? "color:" + color : "") + '">' + val + '</strong></div></div>';
+    kpiBox.innerHTML =
+        kpi("Davr", r.label, "#6366f1") +
+        kpi("Cheklar", r.count + " ta") +
+        kpi("Jami savdo", formatPrice(r.revenue), "var(--primary)") +
+        kpi("Tannarx", formatPrice(r.cogs), "#06b6d4") +
+        kpi("Yalpi foyda", formatPrice(r.grossProfit), "var(--primary)") +
+        kpi("Naqd olingan", formatPrice(r.received)) +
+        kpi("Qarz (nasiya)", formatPrice(r.debt), r.debt > 0 ? "#ef4444" : "") +
+        kpi("Dona", r.units + " dona");
+
+    const tbody = document.getElementById("date-report-tbody");
+    const empty = document.getElementById("date-report-empty");
+    if (tbody) {
+        tbody.innerHTML = "";
+        if (r.sales.length === 0) { if (empty) empty.style.display = "block"; }
+        else {
+            if (empty) empty.style.display = "none";
+            [...r.sales].reverse().forEach(tx => {
+                const total = Number(tx.totalPaid) || 0;
+                const rec = Number(tx.received != null ? tx.received : total) || 0;
+                const dbt = Number(tx.debt) || 0;
+                const ch = tx.channel === 'telegram' ? 'Mini App' : tx.channel === 'phone' ? 'Telefon' : "Do'kon";
+                const tr = document.createElement("tr");
+                tr.innerHTML = '<td><strong>#' + tx.id + '</strong></td><td>' + tx.timestamp + '</td><td>' + (tx.cashier || "—") + '</td>' +
+                    '<td><span class="channel-tag tag-' + tx.channel + '">' + ch + '</span></td><td>' + (tx.itemCount || 0) + '</td>' +
+                    '<td style="font-weight:800;color:var(--primary);">' + formatPrice(total) + '</td><td>' + formatPrice(rec) + '</td>' +
+                    '<td style="' + (dbt > 0 ? "color:#ef4444;font-weight:700;" : "") + '">' + formatPrice(dbt) + '</td>';
+                tbody.appendChild(tr);
+            });
+        }
+    }
+
+    const bd = document.getElementById("date-report-breakdown");
+    if (bd) {
+        let html = "";
+        if (r.cashiers.length) {
+            html += '<div style="margin-bottom:1rem;"><h4 style="font-size:0.85rem;margin-bottom:0.5rem;"><i class="fa-solid fa-user-tie"></i> Kassir kesimi</h4>';
+            r.cashiers.forEach(c => { html += '<div class="diag-row"><span>' + c.name + '</span><small>' + c.count + " ta · " + formatPrice(c.total) + '</small></div>'; });
+            html += '</div>';
+        }
+        if (r.topProducts.length) {
+            html += '<div><h4 style="font-size:0.85rem;margin-bottom:0.5rem;"><i class="fa-solid fa-fire"></i> Eng ko\'p sotilgan</h4>';
+            r.topProducts.forEach(p => { html += '<div class="diag-row"><span>' + p.name + '</span><small>' + p.qty + " dona · " + formatPrice(p.revenue) + '</small></div>'; });
+            html += '</div>';
+        }
+        bd.innerHTML = html;
+    }
+}
+
+function exportDateReportExcel() {
+    if (typeof XLSX === "undefined") { alert("Excel kutubxonasi yuklanmadi. Internet aloqasini tekshiring."); return; }
+    const r = dateReportState.last || computeDateReport();
+    const wb = XLSX.utils.book_new();
+    const summary = [
+        ["ECO SPORTS — Savdo Hisoboti"],
+        ["Davr", r.label],
+        ["Cheklar soni", r.count],
+        ["Jami savdo (UZS)", r.revenue],
+        ["Tannarx COGS (UZS)", r.cogs],
+        ["Yalpi foyda (UZS)", r.grossProfit],
+        ["Naqd olingan (UZS)", r.received],
+        ["Qarz / nasiya (UZS)", r.debt],
+        ["Sotilgan dona", r.units],
+        ["Hisobot tuzilgan", new Date().toLocaleString("uz-UZ")]
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), "Umumiy");
+    const head = ["Chek", "Sana", "Kassir", "Kanal", "Dona", "Jami", "Olingan", "Qarz"];
+    const rows = r.sales.map(tx => [tx.id, tx.timestamp, tx.cashier || "", tx.channel || "", tx.itemCount || 0,
+        Number(tx.totalPaid) || 0, Number(tx.received != null ? tx.received : tx.totalPaid) || 0, Number(tx.debt) || 0]);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, ...rows]), "Sotuvlar");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Kassir", "Cheklar", "Savdo (UZS)"], ...r.cashiers.map(c => [c.name, c.count, c.total])]), "Kassirlar");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Mahsulot", "Dona", "Savdo (UZS)"], ...r.topProducts.map(p => [p.name, p.qty, p.revenue])]), "Mahsulotlar");
+    XLSX.writeFile(wb, "Savdo_Hisobot_" + (r.label || "hisobot").replace(/[^\w-]+/g, "_") + ".xlsx");
+}
+
+function _buildDateReportPdfHtml(r) {
+    const row = (a, b) => '<tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">' + a + '</td><td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;">' + b + '</td></tr>';
+    const salesRows = r.sales.slice(0, 200).map(tx => '<tr>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;">#' + tx.id + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;">' + tx.timestamp + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;">' + (tx.cashier || "") + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;text-align:center;">' + (tx.itemCount || 0) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:700;">' + formatPrice(tx.totalPaid) + '</td>' +
+        '<td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;text-align:right;color:#ef4444;">' + formatPrice(tx.debt || 0) + '</td></tr>').join("");
+    return '<div style="width:794px;background:#fff;color:#1a1a1a;font-family:Arial,sans-serif;">' +
+        '<div style="background:linear-gradient(135deg,#10b981,#0891b2);color:#fff;padding:28px 32px;">' +
+        '<div style="font-size:26px;font-weight:800;">ECO SPORTS</div>' +
+        '<div style="font-size:14px;opacity:0.9;">Savdo Hisoboti — ' + r.label + '</div>' +
+        '<div style="font-size:11px;opacity:0.85;margin-top:4px;">Tuzilgan: ' + new Date().toLocaleString("uz-UZ") + '</div></div>' +
+        '<div style="padding:24px 32px;">' +
+        '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px;">' +
+        row("Cheklar soni", r.count + " ta") + row("Jami savdo", formatPrice(r.revenue)) +
+        row("Tannarx (COGS)", formatPrice(r.cogs)) + row("Yalpi foyda", formatPrice(r.grossProfit)) +
+        row("Naqd olingan", formatPrice(r.received)) + row("Qarz (nasiya)", formatPrice(r.debt)) +
+        row("Sotilgan dona", r.units + " dona") + '</table>' +
+        '<div style="font-size:15px;font-weight:800;margin:18px 0 8px;color:#0891b2;">Sotuvlar</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:11px;">' +
+        '<thead><tr style="background:#f7f7f7;">' +
+        '<th style="padding:6px 8px;text-align:left;">Chek</th><th style="padding:6px 8px;text-align:left;">Sana</th>' +
+        '<th style="padding:6px 8px;text-align:left;">Kassir</th><th style="padding:6px 8px;">Dona</th>' +
+        '<th style="padding:6px 8px;text-align:right;">Jami</th><th style="padding:6px 8px;text-align:right;">Qarz</th></tr></thead>' +
+        '<tbody>' + (salesRows || '<tr><td colspan="6" style="padding:12px;text-align:center;color:#999;">Bu davrda savdo yo\'q</td></tr>') + '</tbody></table>' +
+        (r.sales.length > 200 ? '<div style="font-size:10px;color:#999;margin-top:6px;">* Faqat oxirgi 200 sotuv ko\'rsatildi (to\'liq ma\'lumot Excel\'da).</div>' : '') +
+        '</div>' +
+        '<div style="padding:14px 32px;border-top:2px solid #10b981;font-size:10px;color:#888;">ECO SPORTS CRM · ' + (appConfig.storeName || "") + ' · ' + (appConfig.storePhone || "") + '</div></div>';
+}
+
+async function exportDateReportPdf() {
+    if (!window.html2canvas || !(window.jspdf && window.jspdf.jsPDF)) { alert("PDF kutubxonasi yuklanmadi. Internet aloqasini tekshiring."); return; }
+    const r = dateReportState.last || computeDateReport();
+    const btn = document.getElementById("date-report-pdf");
+    const orig = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Tayyorlanmoqda...'; }
+    const holder = document.createElement("div");
+    holder.style.position = "fixed"; holder.style.left = "-99999px"; holder.style.top = "0"; holder.style.width = "794px";
+    holder.innerHTML = _buildDateReportPdfHtml(r);
+    document.body.appendChild(holder);
+    try {
+        const el = holder.firstElementChild;
+        const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF("p", "mm", "a4");
+        const pageW = 210, pageH = 297, imgW = pageW;
+        const imgH = canvas.height * imgW / canvas.width;
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        let heightLeft = imgH, position = 0;
+        pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH); heightLeft -= pageH;
+        while (heightLeft > 0) { position -= pageH; pdf.addPage(); pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH); heightLeft -= pageH; }
+        pdf.save("Savdo_Hisobot_" + (r.label || "hisobot").replace(/[^\w-]+/g, "_") + ".pdf");
+    } catch (e) { console.error("PDF xato:", e); alert("PDF yaratishda xato: " + e.message); }
+    finally { document.body.removeChild(holder); if (btn) { btn.disabled = false; btn.innerHTML = orig; } }
 }
 
 // 11.6 BUXGALTERIYA FINANCIAL MODULES RENDERER
@@ -2151,6 +2376,9 @@ function renderBuxgalteriya() {
         const margin = revenue > 0 ? Math.round(netProfit / revenue * 100) : 0;
         profitNote.textContent = `Foyda marjasi: ${margin}% • Yalpi: ${formatPrice(grossProfit)}`;
     }
+
+    // Sana bo'yicha savdo hisobotini yangilash (tanlangan davr saqlanadi)
+    if (typeof renderDateReport === "function") renderDateReport();
     
     // --- RENDER PENDING APPROVAL PRODUCTS TABLE [NEW] ---
     const pendingTableBody = document.getElementById("bux-pending-approval-table-body");
@@ -5812,6 +6040,12 @@ function setupEventListeners() {
     safeBind(document.getElementById("diag-fix-btn"), "click", applyDiagFixes);
     safeBind(document.getElementById("diag-report-btn"), "click", downloadDiagReport);
 
+    // --- SANA BO'YICHA SAVDO HISOBOTI ---
+    document.querySelectorAll(".date-q-btn").forEach(b => safeBind(b, "click", () => setDateReportRange(b.dataset.range)));
+    safeBind(document.getElementById("date-report-apply"), "click", applyCustomDateRange);
+    safeBind(document.getElementById("date-report-excel"), "click", exportDateReportExcel);
+    safeBind(document.getElementById("date-report-pdf"), "click", exportDateReportPdf);
+
     // --- KUNLIK SVERTKA & HISOB JURNALI ---
     safeBind(document.getElementById("recon-run-btn"), "click", startReconciliation);
     safeBind(document.getElementById("recon-send-btn"), "click", async () => {
@@ -6486,29 +6720,45 @@ async function syncFromSupabase() {
         // --- 4. eco_sales + eco_sale_items (Savdo) ---
         const { data: cloudSales, error: sErr } = await supabaseClient.from("eco_sales").select("*").order("created_at", { ascending: true });
         if (!sErr && cloudSales && cloudSales.length > 0) {
+            // Bulut sxemasi received/qarz/qarzdor/rang ni saqlamaydi. Yo'qotmaslik uchun
+            // mahalliy sotuv (boy maydonlar) va hisob jurnalidan (ko'p qurilmali) tiklaymiz.
+            const localById = {};
+            (state.salesHistory || []).forEach(s => { localById[String(s.id)] = s; });
+            const ledgerSaleById = {};
+            (typeof ledger !== "undefined" ? ledger : []).forEach(e => { if (e && e.type === "sale" && e.ref) ledgerSaleById[String(e.ref)] = e; });
+
             const salesWithItems = [];
             for (const sale of cloudSales) {
                 const { data: saleItems } = await supabaseClient.from("eco_sale_items").select("*").eq("sale_id", sale.id);
+                const total = parseFloat(sale.total_paid) || 0;
+                const loc = localById[String(sale.id)];
+                const lj = ledgerSaleById[String(sale.id)];
+                // received / qarz / qarzdor: mahalliy → jurnal → standart (to'liq to'lov)
+                let received = total, debt = 0, debtor = null;
+                if (loc && loc.received != null) { received = loc.received; debt = Number(loc.debt) || 0; debtor = loc.debtor || null; }
+                else if (lj && lj.data) { received = lj.data.received != null ? lj.data.received : total; debt = Number(lj.data.debt) || 0; debtor = lj.data.debtor ? { name: lj.data.debtor } : null; }
+                // mahsulotlar (bulut) + rangni mahalliydan tiklash (nom+o'lcham bo'yicha)
+                const items = (saleItems || []).map(si => ({ name: si.product_name, size: si.size, qty: si.qty, soldPrice: parseFloat(si.sold_price) }));
+                if (loc && Array.isArray(loc.items)) {
+                    items.forEach(it => {
+                        const match = loc.items.find(li => li.name === it.name && li.size === it.size && li.color);
+                        if (match) it.color = match.color;
+                    });
+                }
                 salesWithItems.push({
-                    id: sale.id,
-                    timestamp: sale.sale_timestamp,
-                    channel: sale.channel,
-                    items: (saleItems || []).map(si => ({
-                        name: si.product_name,
-                        size: si.size,
-                        qty: si.qty,
-                        soldPrice: parseFloat(si.sold_price)
-                    })),
-                    discount: parseFloat(sale.discount),
-                    subtotal: parseFloat(sale.subtotal),
-                    totalPaid: parseFloat(sale.total_paid),
-                    itemCount: sale.item_count,
-                    cashier: sale.cashier_name
+                    id: sale.id, timestamp: sale.sale_timestamp, channel: sale.channel, items: items,
+                    discount: parseFloat(sale.discount), subtotal: parseFloat(sale.subtotal), totalPaid: total,
+                    received: received, debt: debt, debtor: debtor, itemCount: sale.item_count, cashier: sale.cashier_name
                 });
             }
+            // Bulutda hali yo'q (sinx navbatidagi) mahalliy sotuvlarni ham saqlab qolish
+            const cloudIds = new Set(cloudSales.map(s => String(s.id)));
+            (state.salesHistory || []).forEach(s => { if (!cloudIds.has(String(s.id))) salesWithItems.push(s); });
+            salesWithItems.sort((a, b) => { const da = _saleDateObj(a.timestamp), db = _saleDateObj(b.timestamp); return (da ? da.getTime() : 0) - (db ? db.getTime() : 0); });
+
             state.salesHistory = salesWithItems;
             localStorage.setItem("eco_sports_sales_history", JSON.stringify(state.salesHistory));
-            console.log("Supabase: Sales synced from eco_sales + eco_sale_items!");
+            console.log("Supabase: Sales synced from eco_sales + eco_sale_items (boy maydonlar saqlandi)!");
         } else if (sErr) {
             console.warn("Supabase: eco_sales load error, using local:", sErr);
         }
