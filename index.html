@@ -483,10 +483,11 @@
                     </div>
 
                     <!-- SANA BO'YICHA SAVDO HISOBOTI [NEW] -->
-                    <div class="history-card-container report-card" id="date-report-card" style="margin-bottom: 2.5rem; border-color: rgba(99, 102, 241, 0.3);">
+                    <div class="history-card-container report-card bux-collapsible" id="date-report-card" style="margin-bottom: 2.5rem; border-color: rgba(99, 102, 241, 0.3);">
                         <div class="history-header">
                             <div>
                                 <h3 style="font-weight:800; font-size:1.25rem; display:flex; align-items:center; gap:8px;">
+                                    <i class="fa-solid fa-chevron-down bux-chevron"></i>
                                     <i class="fa-solid fa-calendar-days" style="color:#6366f1;"></i>
                                     <span>Sana Bo'yicha <span class="highlight-text">Savdo Hisoboti</span></span>
                                 </h3>
@@ -542,10 +543,11 @@
                     </div>
 
                     <!-- PENDING PRICE APPROVAL PRODUCTS TABLE [NEW] -->
-                    <div class="history-card-container" style="margin-bottom: 2.5rem; border-color: rgba(245, 158, 11, 0.25);">
+                    <div class="history-card-container bux-collapsible" id="bux-pending-card" style="margin-bottom: 2.5rem; border-color: rgba(245, 158, 11, 0.25);">
                         <div class="history-header">
                             <div>
                                 <h3 style="font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-chevron-down bux-chevron"></i>
                                     <i class="fa-solid fa-hourglass-half" style="color: #f59e0b;"></i>
                                     <span>Narx Tasdiqlash <span class="highlight-text">Kutilayotgan Mahsulotlar</span></span>
                                 </h3>
@@ -581,10 +583,11 @@
                     </div>
 
                     <!-- SUPPLIER STOCK REPORT CARD [REDESIGNED: supplier + currency selector] -->
-                    <div class="history-card-container report-card" style="margin-bottom: 2.5rem; border-color: rgba(16, 185, 129, 0.25);">
+                    <div class="history-card-container report-card bux-collapsible" id="bux-supplier-card" style="margin-bottom: 2.5rem; border-color: rgba(16, 185, 129, 0.25);">
                         <div class="history-header report-head">
                             <div>
                                 <h3 style="font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-chevron-down bux-chevron"></i>
                                     <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
                                     <span>Ta'minotchilar <span class="highlight-text">Ombor Zaxirasi</span></span>
                                 </h3>
@@ -622,10 +625,11 @@
                     </div>
 
                     <!-- SUPPLIER INDIVIDUAL REPORT CARD [REDESIGNED: currency + settlement + details toggle] -->
-                    <div class="history-card-container" style="margin-bottom: 2.5rem; border-color: rgba(6, 182, 212, 0.25);">
+                    <div class="history-card-container bux-collapsible" id="bux-individual-card" style="margin-bottom: 2.5rem; border-color: rgba(6, 182, 212, 0.25);">
                         <div class="history-header report-head">
                             <div>
                                 <h3 style="font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-chevron-down bux-chevron"></i>
                                     <i class="fa-solid fa-address-book" style="color: var(--accent);"></i>
                                     <span>Ta'minotchilar <span class="highlight-text" style="background: linear-gradient(135deg, var(--accent) 0%, #06b6d4 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Shaxsiy Hisob-Kitob Daftari</span></span>
                                 </h3>
@@ -771,9 +775,9 @@
                     </div>
 
                     <!-- Expense Ledger Logs Table -->
-                    <div class="history-card-container">
+                    <div class="history-card-container bux-collapsible" id="bux-expenses-card">
                         <div class="history-header">
-                            <h3>Xarajatlar <span class="highlight-text">Tarixi Daftar-Logi</span></h3>
+                            <h3 style="display:flex; align-items:center; gap:8px;"><i class="fa-solid fa-chevron-down bux-chevron"></i> Xarajatlar <span class="highlight-text">Tarixi Daftar-Logi</span></h3>
                             <button class="btn btn-secondary" id="bux-clear-expenses" style="padding: 0.5rem 1.2rem; font-size: 0.8rem; border-radius: 8px;">
                                 <i class="fa-solid fa-trash-can" style="margin-right: 5px;"></i> Xarajatlarni Tozalash
                             </button>
@@ -1792,7 +1796,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- Core App Logic -->
-    <script src="app.js?v=6.8"></script>
+    <script src="app.js?v=6.9"></script>
     <!-- PWA: Service Worker'ni ro'yxatdan o'tkazish (offline kesh) -->
     <script>
         if ('serviceWorker' in navigator) {

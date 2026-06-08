@@ -958,6 +958,20 @@ button, input, select, textarea {
     margin-bottom: 1.5rem;
 }
 
+/* Buxgalteriya kartochkalarini yig'ish/ochish (collapsible) */
+.bux-collapsible > .history-header { cursor: pointer; }
+.bux-chevron {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+.bux-collapsible > .history-header:hover .bux-chevron { color: var(--primary); }
+.bux-collapsible.collapsed .bux-chevron { transform: rotate(-90deg); }
+.bux-collapsible.collapsed > .history-header { margin-bottom: 0; }
+.bux-collapsible.collapsed > *:not(.history-header) { display: none !important; }
+
 .crm-table {
     width: 100%;
     border-collapse: collapse;

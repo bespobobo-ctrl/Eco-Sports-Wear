@@ -2339,6 +2339,26 @@ async function exportDateReportPdf() {
     finally { document.body.removeChild(holder); if (btn) { btn.disabled = false; btn.innerHTML = orig; } }
 }
 
+// Buxgalteriya kartochkalarini yig'ish/ochish — holat localStorage'da eslab qolinadi
+function _loadBuxCollapsed() { try { return JSON.parse(localStorage.getItem("eco_bux_collapsed") || "{}") || {}; } catch (e) { return {}; } }
+function initBuxCollapsibles() {
+    const saved = _loadBuxCollapsed();
+    document.querySelectorAll(".bux-collapsible").forEach(card => {
+        const id = card.id;
+        if (id && saved[id]) card.classList.add("collapsed");
+        const head = card.querySelector(".history-header");
+        if (!head || head._buxBound) return;
+        head._buxBound = true;
+        head.addEventListener("click", (e) => {
+            // Sarlavhadagi interaktiv elementlar (tugma, select, valyuta) accordionni o'zgartirmasin
+            if (e.target.closest("button, a, input, select, .cur-btn, .rep-select, .currency-toggle, .export-btns")) return;
+            card.classList.toggle("collapsed");
+            const map = _loadBuxCollapsed();
+            if (id) { map[id] = card.classList.contains("collapsed"); try { localStorage.setItem("eco_bux_collapsed", JSON.stringify(map)); } catch (er) {} }
+        });
+    });
+}
+
 // 11.6 BUXGALTERIYA FINANCIAL MODULES RENDERER
 function renderBuxgalteriya() {
     const buxRevenue = document.getElementById("bux-revenue");
@@ -6318,6 +6338,9 @@ function setupEventListeners() {
             head.parentElement.classList.toggle("open");
         });
     });
+
+    // --- BUXGALTERIYA KARTOCHKALARINI YIG'ISH/OCHISH (collapsible, holat eslab qolinadi) ---
+    initBuxCollapsibles();
 
     // 14. STAFF (CASHIER) MANAGER TRIGGERS [NEW]
     const cashierModal = document.getElementById("settings-cashier-modal");
