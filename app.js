@@ -1991,40 +1991,64 @@ async function clearProject(password) {
     if (typeof updateAnalytics === "function") updateAnalytics();
     if (typeof updateReceiptUI === "function") updateReceiptUI();
 
-    // Bulutdan o'chirish — RLS tufayli anon kalit DELETE qila olmaydi.
-    // Xavfsiz serverless funksiya (/api/admin-clear, service_role) orqali o'chiramiz.
-    let cloudOk = true;
+    // Bulutdan o'chirish — RLS tufayli anon kalit to'g'ridan DELETE qila olmaydi.
+    // 1-USUL: Supabase RPC admin_clear_project (SECURITY DEFINER) — Vercel ENV KERAK EMAS,
+    //          service_role ilovaga chiqmaydi. Anon funksiyani chaqiradi, funksiya ichida
+    //          parol tekshirilib o'chiriladi. (Bir martalik SQL bilan yaratiladi.)
+    // 2-USUL (zaxira): serverless /api/admin-clear (Vercel SUPABASE_SERVICE_ROLE env bilan).
+    let cloudOk = false;
     let cloudReason = "";
+    let wrongPassword = false;
     if (typeof supabaseClient !== "undefined" && supabaseClient) {
+        // --- 1-USUL: RPC ---
         try {
-            const resp = await fetch("/api/admin-clear", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ password: password || "" })
-            });
-            if (resp.ok) {
-                const data = await resp.json().catch(() => ({}));
-                cloudOk = !(data && data.ok === false);
-                const clearedAt = Date.now();
-                localStorage.setItem("eco_sports_cleared_seen", String(clearedAt));
+            const { error } = await supabaseClient.rpc("admin_clear_project", { pass: password || "" });
+            if (!error) {
+                cloudOk = true;
+                localStorage.setItem("eco_sports_cleared_seen", String(Date.now()));
             } else {
-                cloudOk = false;
-                const err = await resp.json().catch(() => ({}));
-                cloudReason = err.error || ("HTTP " + resp.status);
-                console.warn("admin-clear javobi:", resp.status, cloudReason);
+                const msg = (error.message || error.hint || error.code || "").toLowerCase();
+                if (msg.includes("parol") || msg.includes("password")) {
+                    wrongPassword = true;
+                    cloudReason = "Noto'g'ri parol";
+                } else {
+                    cloudReason = "RPC: " + (error.message || error.code || "yo'q");
+                }
             }
         } catch (e) {
-            // Lokal dev'da (npx serve) /api yo'q — bu normal; mahalliy tozalash baribir bo'ldi
-            cloudOk = false;
-            cloudReason = "serverless chaqirib bo'lmadi (lokal rejim?)";
-            console.warn("admin-clear chaqiruvi muvaffaqiyatsiz:", e);
+            cloudReason = "RPC: " + e.message;
+        }
+
+        // --- 2-USUL: serverless (RPC ishlamasa va parol noto'g'ri bo'lmasa) ---
+        if (!cloudOk && !wrongPassword) {
+            try {
+                const resp = await fetch("/api/admin-clear", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ password: password || "" })
+                });
+                if (resp.ok) {
+                    const data = await resp.json().catch(() => ({}));
+                    cloudOk = !(data && data.ok === false);
+                    if (cloudOk) { cloudReason = ""; localStorage.setItem("eco_sports_cleared_seen", String(Date.now())); }
+                } else {
+                    const err = await resp.json().catch(() => ({}));
+                    if (resp.status === 403) { wrongPassword = true; cloudReason = "Noto'g'ri parol"; }
+                    else cloudReason += (cloudReason ? " | " : "") + "server: " + (err.error || ("HTTP " + resp.status));
+                }
+            } catch (e) {
+                cloudReason += (cloudReason ? " | " : "") + "server chaqirib bo'lmadi (lokal rejim?)";
+            }
         }
     }
 
     if (cloudOk) {
         alert("✅ Loyiha to'liq tozalandi!\nMahsulotlar, ombor zaxirasi va savdo tarixi barcha qurilmalardan (bulut) o'chirildi.");
+    } else if (wrongPassword) {
+        alert("❌ Noto'g'ri parol — bulut tozalanmadi. (Mahalliy ma'lumot tozalandi.)");
     } else {
-        alert("⚠️ Mahalliy ma'lumot tozalandi, lekin bulut tozalanmadi" + (cloudReason ? `:\n${cloudReason}` : ".") + "\n\nEslatma: bu Vercel'da /api/admin-clear va SUPABASE_SERVICE_ROLE env sozlanganda ishlaydi. Aks holda boshqa qurilmalarda mahsulot qaytishi mumkin.");
+        alert("⚠️ Mahalliy ma'lumot tozalandi, lekin bulut tozalanmadi" + (cloudReason ? `:\n${cloudReason}` : ".") +
+            "\n\nBulutni tozalash uchun ikkidan biri sozlanishi kerak:\n• Supabase'da admin_clear_project funksiyasi (tavsiya), yoki\n• Vercel'da SUPABASE_SERVICE_ROLE env.\nAks holda boshqa qurilmalarda mahsulot qaytishi mumkin.");
     }
 }
 
