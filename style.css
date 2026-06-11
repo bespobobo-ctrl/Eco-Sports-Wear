@@ -2926,6 +2926,72 @@ button, input, select, textarea {
 .pack-warn b { color: #fbbf24; font-weight: 800; }
 
 /* ============================================================
+   MOLIYAVIY BUXGALTERIYA — bir qatorli KPI strip (professional)
+   ============================================================ */
+.bux-finance-strip {
+    display: flex;
+    gap: 0.8rem;
+    margin-bottom: 2.5rem;
+}
+.bfx-card {
+    flex: 1 1 0;
+    min-width: 0;
+    background: var(--bg-dark-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 0.95rem 1rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    transition: border-color 0.18s ease, transform 0.12s ease;
+}
+.bfx-card:hover { border-color: rgba(255, 255, 255, 0.18); transform: translateY(-2px); }
+.bfx-card.bfx-highlight {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: linear-gradient(160deg, rgba(16,185,129,0.07), var(--bg-dark-surface) 60%);
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.10);
+}
+.bfx-top { display: flex; align-items: center; gap: 0.5rem; }
+.bfx-ic {
+    width: 30px; height: 30px;
+    border-radius: 9px;
+    border: 1px solid;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+.bfx-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    line-height: 1.18;
+}
+.bfx-value {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.3px;
+}
+.bfx-note {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    line-height: 1.25;
+}
+/* Kichik ekran: bir qatorda qoladi — gorizontal scroll (squash bo'lmaydi) */
+@media (max-width: 1080px) {
+    .bux-finance-strip {
+        overflow-x: auto;
+        padding-bottom: 0.6rem;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+    .bfx-card { flex: 0 0 168px; }
+}
+
+/* ============================================================
    QARZDORLAR BO'LIMI — holat badge, amal tugmalari, filtr
    ============================================================ */
 .debtor-status {

@@ -24,7 +24,7 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Main Style sheet -->
-    <link rel="stylesheet" href="style.css?v=4.5">
+    <link rel="stylesheet" href="style.css?v=4.6">
 </head>
 <body>
 
@@ -448,53 +448,53 @@
                         </button>
                     </div>
 
-                    <!-- Finance Ledger Badges -->
-                    <div class="stats-grid" style="margin-bottom: 2.5rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-                        <div class="stat-badge-card">
-                            <div class="stat-badge-icon" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.15); color: var(--primary);"><i class="fa-solid fa-chart-line"></i></div>
-                            <div class="stat-badge-info">
-                                <h4>Jami Savdo (Aylanma)</h4>
-                                <strong id="bux-revenue">0 UZS</strong>
+                    <!-- Finance Ledger Strip — bir qatorli professional KPI -->
+                    <div class="bux-finance-strip">
+                        <div class="bfx-card">
+                            <div class="bfx-top">
+                                <span class="bfx-ic" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2); color: var(--primary);"><i class="fa-solid fa-chart-line"></i></span>
+                                <span class="bfx-label">Jami Savdo (Aylanma)</span>
                             </div>
+                            <div class="bfx-value" id="bux-revenue">0 UZS</div>
                         </div>
-                        <div class="stat-badge-card">
-                            <div class="stat-badge-icon cyan-theme"><i class="fa-solid fa-dolly"></i></div>
-                            <div class="stat-badge-info">
-                                <h4>Tan Narxi (COGS)</h4>
-                                <strong id="bux-cogs">0 UZS</strong>
-                                <small id="bux-cogs-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Sotilgan mahsulot tannarxi</small>
+                        <div class="bfx-card">
+                            <div class="bfx-top">
+                                <span class="bfx-ic" style="background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.2); color: var(--accent);"><i class="fa-solid fa-dolly"></i></span>
+                                <span class="bfx-label">Tan Narxi (COGS)</span>
                             </div>
+                            <div class="bfx-value" id="bux-cogs">0 UZS</div>
+                            <div class="bfx-note" id="bux-cogs-note">Sotilgan mahsulot tannarxi</div>
                         </div>
-                        <div class="stat-badge-card">
-                            <div class="stat-badge-icon" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.15); color: #ef4444;"><i class="fa-solid fa-wallet"></i></div>
-                            <div class="stat-badge-info">
-                                <h4>Jami Xarajatlar</h4>
-                                <strong id="bux-expenses">0 UZS</strong>
+                        <div class="bfx-card">
+                            <div class="bfx-top">
+                                <span class="bfx-ic" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444;"><i class="fa-solid fa-wallet"></i></span>
+                                <span class="bfx-label">Jami Xarajatlar</span>
                             </div>
+                            <div class="bfx-value" id="bux-expenses">0 UZS</div>
                         </div>
-                        <div class="stat-badge-card">
-                            <div class="stat-badge-icon cyan-theme" style="background: rgba(16,185,129,0.12); border-color: var(--primary); color: var(--primary); box-shadow: 0 0 15px var(--primary-glow);"><i class="fa-solid fa-sack-dollar"></i></div>
-                            <div class="stat-badge-info">
-                                <h4>Netto Foyda (Toza)</h4>
-                                <strong id="bux-profit" class="highlight-text" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
-                                <small id="bux-profit-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Foyda marjasi: 0%</small>
+                        <div class="bfx-card bfx-highlight">
+                            <div class="bfx-top">
+                                <span class="bfx-ic" style="background: rgba(16,185,129,0.14); border-color: var(--primary); color: var(--primary);"><i class="fa-solid fa-sack-dollar"></i></span>
+                                <span class="bfx-label">Netto Foyda (Toza)</span>
                             </div>
+                            <div class="bfx-value" id="bux-profit" style="color: var(--primary);">0 UZS</div>
+                            <div class="bfx-note" id="bux-profit-note">Foyda marjasi: 0%</div>
                         </div>
-                        <div class="stat-badge-card">
-                            <div class="stat-badge-icon" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.18); color: #f59e0b;"><i class="fa-solid fa-hand-holding-dollar"></i></div>
-                            <div class="stat-badge-info">
-                                <h4>Mijoz Qarzi (Olinadigan)</h4>
-                                <strong id="bux-customer-debt" style="color:#f59e0b;">0 UZS</strong>
-                                <small id="bux-customer-debt-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Mijozlar bizga qarzdor</small>
+                        <div class="bfx-card">
+                            <div class="bfx-top">
+                                <span class="bfx-ic" style="background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: #f59e0b;"><i class="fa-solid fa-hand-holding-dollar"></i></span>
+                                <span class="bfx-label">Mijoz Qarzi (Olinadigan)</span>
                             </div>
+                            <div class="bfx-value" id="bux-customer-debt" style="color:#f59e0b;">0 UZS</div>
+                            <div class="bfx-note" id="bux-customer-debt-note">Mijozlar bizga qarzdor</div>
                         </div>
-                        <div class="stat-badge-card">
-                            <div class="stat-badge-icon" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.18); color: #ef4444;"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-                            <div class="stat-badge-info">
-                                <h4>Ta'minotchi Qarzi (To'lanadigan)</h4>
-                                <strong id="bux-supplier-debt" style="color:#ef4444;">0 UZS</strong>
-                                <small id="bux-supplier-debt-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Biz ta'minotchiga qarzdormiz</small>
+                        <div class="bfx-card">
+                            <div class="bfx-top">
+                                <span class="bfx-ic" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444;"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+                                <span class="bfx-label">Ta'minotchi Qarzi (To'lanadigan)</span>
                             </div>
+                            <div class="bfx-value" id="bux-supplier-debt" style="color:#ef4444;">0 UZS</div>
+                            <div class="bfx-note" id="bux-supplier-debt-note">Biz ta'minotchiga qarzdormiz</div>
                         </div>
                     </div>
 
