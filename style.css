@@ -2280,6 +2280,34 @@ button, input, select, textarea {
     word-break: break-word;
 }
 
+/* Yuk miqdori (pachka/dona) — qarz qiymati ostidagi izoh */
+.settle-stat-qty {
+    margin-top: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(6, 182, 212, 0.08);
+    border: 1px solid rgba(6, 182, 212, 0.18);
+    border-radius: 6px;
+    padding: 0.12rem 0.45rem;
+    display: inline-block;
+}
+.settle-balance.owe #ind-debt-qty {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.22);
+}
+.settle-balance.paid #ind-debt-qty {
+    color: var(--primary);
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.22);
+}
+.settle-balance.over #ind-debt-qty {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.22);
+}
+
 /* Balance card variants */
 .settle-balance { border-width: 1.5px; }
 .settle-balance.owe { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.06); }
@@ -2791,10 +2819,172 @@ button, input, select, textarea {
 .odet-size.zero b { color: #ef4444; }
 
 /* Calc modal color/size button small counts */
-#calc-color-options .size-btn small,
-#calc-size-options .size-btn small { font-size: 0.62rem; opacity: 0.75; font-weight: 600; margin-left: 2px; }
+#calc-color-options .size-btn small { font-size: 0.62rem; opacity: 0.75; font-weight: 600; margin-left: 2px; }
 #calc-color-options .size-btn:disabled,
 #calc-size-options .size-btn:disabled { cursor: not-allowed; }
+
+/* ============================================================
+   O'LCHAM / PACHKA TANLASH — PREMIUM CHIP & KARTA LAYOUT
+   (pachka soni va chala dona tartibli, sig'imli ko'rinish)
+   ============================================================ */
+#calc-size-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+/* Tayanch chip: kvadrat emas — kontentga moslashuvchi, vertikal */
+#calc-size-options .size-btn {
+    width: auto;
+    min-width: 52px;
+    height: auto;
+    min-height: 50px;
+    padding: 0.4rem 0.85rem;
+    flex-direction: column;
+    gap: 1px;
+    border-radius: 12px;
+    border-width: 1.5px;
+    line-height: 1.15;
+}
+#calc-size-options .size-btn .cb-size { font-size: 0.95rem; font-weight: 800; }
+#calc-size-options .size-btn small {
+    font-size: 0.6rem;
+    font-weight: 700;
+    opacity: 0.65;
+    margin-left: 0;
+    letter-spacing: 0.2px;
+}
+#calc-size-options .size-btn.active small { opacity: 0.92; }
+#calc-size-options .size-btn.is-empty { opacity: 0.35; }
+
+/* "To'liq pachka" — to'liq enli ko'zga tashlanadigan premium karta */
+#calc-size-options .pack-btn {
+    flex: 1 1 100%;
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.55rem;
+    min-height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(6, 182, 212, 0.06));
+    border-color: rgba(16, 185, 129, 0.32);
+}
+#calc-size-options .pack-btn .pb-ic { font-size: 1.15rem; line-height: 1; }
+#calc-size-options .pack-btn .pb-label { font-size: 0.95rem; font-weight: 800; }
+#calc-size-options .pack-btn small {
+    font-size: 0.7rem;
+    font-weight: 800;
+    opacity: 1;
+    padding: 0.15rem 0.55rem;
+    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.16);
+    color: var(--primary);
+}
+#calc-size-options .pack-btn:hover:not(.is-empty) {
+    border-color: var(--primary);
+    transform: translateY(-1px);
+}
+#calc-size-options .pack-btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.32);
+}
+#calc-size-options .pack-btn.active .pb-label { color: #fff; }
+#calc-size-options .pack-btn.active small { background: rgba(255, 255, 255, 0.22); color: #fff; }
+
+/* Chala dona chipi — sariq aksent (to'liq pachkadan ortgan) */
+#calc-size-options .chala-btn {
+    background: rgba(245, 158, 11, 0.07);
+    border-color: rgba(245, 158, 11, 0.28);
+}
+#calc-size-options .chala-btn .cb-size { color: #fbbf24; }
+#calc-size-options .chala-btn small { color: #f59e0b; opacity: 0.9; }
+#calc-size-options .chala-btn:hover { border-color: #f59e0b; transform: translateY(-1px); }
+#calc-size-options .chala-btn.active {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+#calc-size-options .chala-btn.active .cb-size,
+#calc-size-options .chala-btn.active small { color: #fff; }
+
+/* Pachkada yo'q o'lchamlar ogohlantirishi — yumshoq info banner */
+.pack-warn {
+    flex: 1 1 100%;
+    display: flex;
+    gap: 0.45rem;
+    margin-top: 0.35rem;
+    padding: 0.6rem 0.75rem;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 10px;
+    font-size: 0.76rem;
+    color: #f59e0b;
+    line-height: 1.4;
+}
+.pack-warn b { color: #fbbf24; font-weight: 800; }
+
+/* ============================================================
+   QARZDORLAR BO'LIMI — holat badge, amal tugmalari, filtr
+   ============================================================ */
+.debtor-status {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0.2rem 0.55rem;
+    border-radius: 20px;
+    border: 1px solid;
+    white-space: nowrap;
+}
+.debtor-actions {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.debtor-act-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-dark-input);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.debtor-act-btn:hover { transform: translateY(-1px); }
+.debtor-act-btn.call { color: #22c55e; border-color: rgba(34,197,94,0.3); }
+.debtor-act-btn.call:hover { background: #22c55e; color: #fff; }
+.debtor-act-btn.sms { color: #3b82f6; border-color: rgba(59,130,246,0.3); }
+.debtor-act-btn.sms:hover { background: #3b82f6; color: #fff; }
+.debtor-act-btn.partial { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+.debtor-act-btn.partial:hover { background: #f59e0b; color: #fff; }
+.debtor-act-btn.paid { color: var(--primary); border-color: rgba(16,185,129,0.35); }
+.debtor-act-btn.paid:hover { background: var(--primary); color: #fff; }
+.debtor-act-btn.disabled { opacity: 0.35; cursor: not-allowed; }
+.debtor-filter-btn.active {
+    background: linear-gradient(135deg, #ef4444, #f59e0b);
+    color: #fff;
+    border-color: transparent;
+}
+
+/* Ta'minotchi daftari — Nasiya (qarzga berilgan) KPI kartasi: minus qizil */
+#bux-ind-credit-card .rep-kpi-value { color: #ef4444; }
+
+/* Ta'minotchi daftari — Oylik Sof Foyda KPI kartasi */
+#bux-ind-profit-card .rep-kpi-value { color: #22c55e; }
+#bux-ind-profit-card.is-loss .rep-kpi-value { color: #ef4444; }
+#bux-ind-profit-card.is-loss .rep-kpi-ic {
+    color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+    border-color: rgba(239, 68, 68, 0.2) !important;
+}
 
 /* ============================================================
    SOTUV KALKULYATORI — RANG / PACHKA TANLASH (Premium UI/UX)

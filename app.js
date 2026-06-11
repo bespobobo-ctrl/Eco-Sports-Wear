@@ -1122,9 +1122,8 @@ function openCalcModal(productId) {
             if (colorGroup) colorGroup.style.display = "none";
             calcSizesContainer.innerHTML = "";
             const sbtn = document.createElement("button");
-            sbtn.type = "button"; sbtn.className = "size-btn active";
-            sbtn.style.width = "auto"; sbtn.style.padding = "0 1.5rem";
-            sbtn.textContent = "1 Pachka (Set)";
+            sbtn.type = "button"; sbtn.className = "size-btn pack-btn active";
+            sbtn.innerHTML = `<span class="pb-ic">📦</span><span class="pb-label">1 Pachka (Set: S-XXL)</span>`;
             calcSizesContainer.appendChild(sbtn);
         }
     } else {
@@ -1184,10 +1183,10 @@ function renderCalcDonaSizes(product, color) {
         const avail = sizeMap[size] || 0;
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "size-btn";
+        btn.className = "size-btn dona-btn";
         btn.disabled = avail < 1;
-        btn.innerHTML = `${size} <small>(${avail})</small>`;
-        if (avail < 1) btn.style.opacity = "0.4";
+        btn.innerHTML = `<span class="cb-size">${size}</span><small>${avail} ta</small>`;
+        if (avail < 1) btn.classList.add("is-empty");
         else if (!firstAvail) firstAvail = size;
         btn.addEventListener("click", () => {
             if (avail < 1) return;
@@ -1242,10 +1241,10 @@ function renderOptimSizes(product, color) {
     // To'liq pachka tugmasi
     const packBtn = document.createElement("button");
     packBtn.type = "button";
-    packBtn.className = "size-btn";
+    packBtn.className = "size-btn pack-btn";
     packBtn.disabled = fullPacks < 1;
-    packBtn.innerHTML = `📦 To'liq pachka <small>(${fullPacks})</small>`;
-    if (fullPacks < 1) packBtn.style.opacity = "0.4";
+    packBtn.innerHTML = `<span class="pb-ic">📦</span><span class="pb-label">To'liq pachka</span><small>${fullPacks} ta</small>`;
+    if (fullPacks < 1) { packBtn.classList.add("is-empty"); }
     packBtn.addEventListener("click", () => { if (fullPacks >= 1) selectPack(); });
     calcSizesContainer.appendChild(packBtn);
 
@@ -1256,8 +1255,8 @@ function renderOptimSizes(product, color) {
         if (left <= 0) return;
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "size-btn";
-        btn.innerHTML = `${size} <small>chala ×${left}</small>`;
+        btn.className = "size-btn chala-btn";
+        btn.innerHTML = `<span class="cb-size">${size}</span><small>chala ×${left}</small>`;
         btn.addEventListener("click", () => selectDona(size, btn));
         calcSizesContainer.appendChild(btn);
         if (!firstDonaBtn) { firstDonaBtn = btn; firstDonaSize = size; }
@@ -1267,8 +1266,8 @@ function renderOptimSizes(product, color) {
     const missing = sizes.filter(s => (sizeMap[s] || 0) < 1);
     if (missing.length) {
         const warn = document.createElement("div");
-        warn.style.cssText = "width:100%; margin-top:0.5rem; font-size:0.78rem; color:#f59e0b; line-height:1.3;";
-        warn.textContent = `⚠️ Bu pachkada yo'q: ${missing.join(", ")} — qolgan o'lchamlar dona narxida (${donaPrice.toLocaleString('uz-UZ')} so'm) sotiladi`;
+        warn.className = "pack-warn";
+        warn.innerHTML = `<span>⚠️</span><span>Bu pachkada yo'q: <b>${missing.join(", ")}</b> — qolgan o'lchamlar dona narxida (${donaPrice.toLocaleString('uz-UZ')} so'm) sotiladi</span>`;
         calcSizesContainer.appendChild(warn);
     }
 
@@ -1985,12 +1984,15 @@ async function clearProject(password) {
     colorStock = {};
     state.kirimHistory = [];
     state.salesHistory = []; // savdo tarixi
+    customerDebts = []; // mijoz qarzlari (nasiya) — sotuvlar o'chsa, qarz ham o'chadi (arvoh qolmasin)
 
     localStorage.setItem("eco_sports_dynamic_products", "[]");
     localStorage.setItem("eco_sports_inventory", "{}");
     localStorage.setItem("eco_sports_color_stock", "{}");
     localStorage.setItem("eco_sports_kirim_history", "[]");
     localStorage.setItem("eco_sports_sales_history", "[]");
+    localStorage.setItem("eco_sports_customer_debts", "[]");
+    if (typeof dbSaveConfig === "function") dbSaveConfig("eco_customer_debts", []);
 
     // Savatni darhol tozalash + UI'ni yangilash (foydalanuvchi tez ko'rsin)
     state.cart = [];
@@ -2431,8 +2433,38 @@ function renderBuxgalteriya() {
         profitNote.textContent = `Foyda marjasi: ${margin}% • Yalpi: ${formatPrice(grossProfit)}`;
     }
 
+    // --- QARZLAR (Moliyaviy Buxgalteriya boshida) ---
+    // 1) Mijoz qarzi (olinadigan) — mijozlar bizga to'lashi kerak (nasiya savdo)
+    const unpaidDebts = (customerDebts || []).filter(d => !d.paid && (Number(d.debt) || 0) > 0);
+    const customerDebtTotal = unpaidDebts.reduce((s, d) => s + (Number(d.debt) || 0), 0);
+    const custDebtEl = document.getElementById("bux-customer-debt");
+    const custDebtNote = document.getElementById("bux-customer-debt-note");
+    if (custDebtEl) custDebtEl.textContent = formatPrice(customerDebtTotal);
+    if (custDebtNote) custDebtNote.textContent = `${unpaidDebts.length} ta qarzdor mijoz`;
+
+    // 2) Ta'minotchi qarzi (to'lanadigan) — biz ta'minotchiga to'lashimiz kerak
+    let supplierDebtTotal = 0, supplierOweCount = 0;
+    if (typeof getSupplierTakenValue === "function" && typeof getSupplierPaidTotal === "function") {
+        const supNames = new Set();
+        (state.kirimHistory || []).forEach(k => { if (k.supplier) supNames.add(k.supplier); });
+        Object.keys(supplierPayments || {}).forEach(n => supNames.add(n));
+        supNames.forEach(n => {
+            const bal = getSupplierTakenValue(n) - getSupplierPaidTotal(n);
+            if (bal > 0) { supplierDebtTotal += bal; supplierOweCount++; }
+        });
+    }
+    const supDebtEl = document.getElementById("bux-supplier-debt");
+    const supDebtNote = document.getElementById("bux-supplier-debt-note");
+    if (supDebtEl) supDebtEl.textContent = formatPrice(supplierDebtTotal);
+    if (supDebtNote) supDebtNote.textContent = supplierOweCount > 0
+        ? `${supplierOweCount} ta ta'minotchiga qarz`
+        : "Hammasi to'langan ✓";
+
     // Sana bo'yicha savdo hisobotini yangilash (tanlangan davr saqlanadi)
     if (typeof renderDateReport === "function") renderDateReport();
+
+    // Qarzdorlar (nasiya) ro'yxati
+    if (typeof renderDebtors === "function") renderDebtors();
     
     // --- RENDER PENDING APPROVAL PRODUCTS TABLE [NEW] ---
     const pendingTableBody = document.getElementById("bux-pending-approval-table-body");
@@ -2601,6 +2633,339 @@ try {
 function saveCustomerDebts() {
     localStorage.setItem("eco_sports_customer_debts", JSON.stringify(customerDebts));
     if (typeof dbSaveConfig === "function") dbSaveConfig("eco_customer_debts", customerDebts);
+}
+
+// ============================================================
+//  QARZDORLAR (NASIYA) — ko'rish, muddat holati, SMS/qo'ng'iroq
+// ============================================================
+let debtorFilterState = "active"; // active | overdue | soon | paid | all
+
+// Qarz muddati holati: o'tgan / yaqin (≤3 kun) / faol / to'langan
+function _debtorDueStatus(d) {
+    if (d.paid || (Number(d.debt) || 0) <= 0) {
+        return { key: "paid", label: "To'langan ✓", color: "var(--primary)", days: null };
+    }
+    const due = d.dueDate ? new Date(d.dueDate + "T00:00:00") : null;
+    if (!due || isNaN(due.getTime())) {
+        return { key: "active", label: "Muddatsiz", color: "var(--text-secondary)", days: null };
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = Math.round((due.getTime() - today.getTime()) / 86400000);
+    if (days < 0) return { key: "overdue", label: `${Math.abs(days)} kun o'tgan`, color: "#ef4444", days };
+    if (days <= 3) return { key: "soon", label: days === 0 ? "Bugun muddat" : `${days} kun qoldi`, color: "#f59e0b", days };
+    return { key: "active", label: `${days} kun qoldi`, color: "var(--text-secondary)", days };
+}
+
+// Qarz qaysi ta'minotchi mahsuloti(lari)dan — sotuv chekidan aniqlanadi
+function _debtorItemsInfo(d) {
+    const sale = (state.salesHistory || []).find(s => String(s.id) === String(d.id));
+    const suppliers = new Set();
+    const products = [];
+    if (sale && Array.isArray(sale.items)) {
+        sale.items.forEach(it => {
+            const sup = typeof getSupplierFromProductName === "function" ? getSupplierFromProductName(it.name) : null;
+            if (sup) suppliers.add(sup);
+            const clean = String(it.name || "").replace(/\s*\[cogs:\d+,pack:\d+\]/, "").trim();
+            if (clean) products.push(clean + (it.qty ? ` ×${it.qty}` : ""));
+        });
+    }
+    return { suppliers: Array.from(suppliers), products };
+}
+
+// Qarzdorga eslatma matni (SMS uchun)
+function _debtorReminderText(d) {
+    const due = d.dueDate ? ` (muddat: ${d.dueDate})` : "";
+    return `Hurmatli ${d.name}, Eco Sports do'konidan ${formatPrice(Number(d.debt) || 0)} miqdorida qarzingiz bor${due}. Iltimos to'lovni amalga oshiring. Rahmat!`;
+}
+
+// Qarzni to'liq to'landi deb belgilash
+function markDebtorPaid(id) {
+    const d = customerDebts.find(x => String(x.id) === String(id));
+    if (!d) return;
+    if (!confirm(`${d.name} qarzini (${formatPrice(Number(d.debt) || 0)}) TO'LIQ to'landi deb belgilaysizmi?`)) return;
+    const amount = Number(d.debt) || 0;
+    d.received = (Number(d.received) || 0) + amount;
+    d.debt = 0;
+    d.paid = true;
+    saveCustomerDebts();
+    if (typeof appendLedger === "function") {
+        appendLedger("customer_payment", { ref: d.id, account: "kassa", direction: "in", amount: amount, note: d.name + " · qarz to'liq yopildi" });
+    }
+    renderDebtors();
+    if (typeof renderBuxgalteriya === "function") renderBuxgalteriya();
+}
+
+// Qarzga qisman to'lov
+function partialDebtorPayment(id) {
+    const d = customerDebts.find(x => String(x.id) === String(id));
+    if (!d) return;
+    const cur = Number(d.debt) || 0;
+    const inp = prompt(`${d.name} — qancha to'ladi? (qolgan qarz: ${formatPrice(cur)})`, "");
+    if (inp == null) return;
+    let amt = parseFloat(String(inp).replace(/\s/g, ""));
+    if (isNaN(amt) || amt <= 0) { alert("Summani to'g'ri kiriting."); return; }
+    amt = Math.min(amt, cur);
+    d.debt = Math.max(0, cur - amt);
+    d.received = (Number(d.received) || 0) + amt;
+    if (d.debt <= 0) d.paid = true;
+    saveCustomerDebts();
+    if (typeof appendLedger === "function") {
+        appendLedger("customer_payment", { ref: d.id, account: "kassa", direction: "in", amount: amt, note: d.name + " · qisman to'lov" + (d.paid ? " (yopildi)" : "") });
+    }
+    renderDebtors();
+    if (typeof renderBuxgalteriya === "function") renderBuxgalteriya();
+}
+
+// Qarzdorlar bo'limini chizish
+function renderDebtors() {
+    const tbody = document.getElementById("debtors-tbody");
+    if (!tbody) return;
+
+    const all = (customerDebts || []).slice();
+
+    // KPI hisob
+    let totalDebt = 0, overdueVal = 0, overdueCnt = 0, soonVal = 0, soonCnt = 0, paidVal = 0, paidCnt = 0, activeCnt = 0;
+    all.forEach(d => {
+        const st = _debtorDueStatus(d);
+        const debt = Number(d.debt) || 0;
+        if (st.key === "paid") { paidVal += (Number(d.total) || debt); paidCnt++; return; }
+        totalDebt += debt;
+        if (st.key === "overdue") { overdueVal += debt; overdueCnt++; }
+        else if (st.key === "soon") { soonVal += debt; soonCnt++; }
+        activeCnt++;
+    });
+    const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setTxt("debtors-total", formatPrice(totalDebt));
+    setTxt("debtors-count", String(activeCnt));
+    setTxt("debtors-overdue", formatPrice(overdueVal));
+    setTxt("debtors-overdue-count", String(overdueCnt));
+    setTxt("debtors-soon", formatPrice(soonVal));
+    setTxt("debtors-soon-count", String(soonCnt));
+    setTxt("debtors-paid", formatPrice(paidVal));
+    setTxt("debtors-paid-count", String(paidCnt));
+
+    // Filtr tugmalari faol holati
+    document.querySelectorAll("#debtors-filter .debtor-filter-btn").forEach(b => {
+        b.classList.toggle("active", b.dataset.dfilter === debtorFilterState);
+    });
+
+    // Filtrlash
+    let rows = all.filter(d => {
+        const st = _debtorDueStatus(d);
+        if (debtorFilterState === "all") return true;
+        if (debtorFilterState === "active") return st.key !== "paid";
+        return st.key === debtorFilterState;
+    });
+    // Tartib: muddati o'tgan eng tepada, keyin yaqin, keyin qolgan; to'langan oxirida
+    const rank = { overdue: 0, soon: 1, active: 2, paid: 3 };
+    rows.sort((a, b) => {
+        const ra = rank[_debtorDueStatus(a).key], rb = rank[_debtorDueStatus(b).key];
+        if (ra !== rb) return ra - rb;
+        return (Number(b.debt) || 0) - (Number(a.debt) || 0);
+    });
+
+    const empty = document.getElementById("debtors-empty");
+    tbody.innerHTML = "";
+    if (rows.length === 0) {
+        if (empty) empty.style.display = "block";
+        return;
+    }
+    if (empty) empty.style.display = "none";
+
+    rows.forEach(d => {
+        const st = _debtorDueStatus(d);
+        const info = _debtorItemsInfo(d);
+        const tel = String(d.phone || "").replace(/[^\d+]/g, "");
+        const smsText = encodeURIComponent(_debtorReminderText(d));
+        const isPaid = st.key === "paid";
+
+        const supTags = info.suppliers.length
+            ? info.suppliers.map(s => `<span class="channel-tag" style="background:rgba(16,185,129,0.1); color:var(--primary); font-size:0.66rem; margin:1px;">${s}</span>`).join("")
+            : `<span style="color:var(--text-muted); font-size:0.72rem;">—</span>`;
+        const prodSub = info.products.length
+            ? `<div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">${info.products.slice(0, 2).join(", ")}${info.products.length > 2 ? " …" : ""}</div>`
+            : "";
+
+        const callBtn = tel
+            ? `<a href="tel:${tel}" class="debtor-act-btn call" title="Qo'ng'iroq qilish"><i class="fa-solid fa-phone"></i></a>`
+            : `<span class="debtor-act-btn disabled" title="Telefon yo'q"><i class="fa-solid fa-phone-slash"></i></span>`;
+        const smsBtn = tel
+            ? `<a href="sms:${tel}?&body=${smsText}" class="debtor-act-btn sms" title="SMS eslatma yuborish"><i class="fa-solid fa-comment-sms"></i></a>`
+            : `<span class="debtor-act-btn disabled" title="Telefon yo'q"><i class="fa-solid fa-comment-slash"></i></span>`;
+        const payBtns = isPaid
+            ? `<span class="channel-tag" style="background:rgba(16,185,129,0.12); color:var(--primary); font-size:0.66rem;">Yopilgan</span>`
+            : `<button type="button" class="debtor-act-btn partial" data-debtor-partial="${d.id}" title="Qisman to'lov"><i class="fa-solid fa-coins"></i></button>
+               <button type="button" class="debtor-act-btn paid" data-debtor-paid="${d.id}" title="To'liq to'landi"><i class="fa-solid fa-check"></i></button>`;
+
+        const row = document.createElement("tr");
+        row.style.opacity = isPaid ? "0.65" : "1";
+        row.innerHTML = `
+            <td>
+                <div style="font-weight:700;">${d.name || "Noma'lum"}</div>
+                ${d.telegram ? `<div style="font-size:0.68rem; color:var(--accent);">${d.telegram}</div>` : ""}
+            </td>
+            <td style="white-space:nowrap;">${d.phone ? `<span style="font-weight:600;">${d.phone}</span>` : `<span style="color:var(--text-muted);">—</span>`}</td>
+            <td style="font-weight:800; color:${isPaid ? 'var(--primary)' : '#ef4444'};">${formatPrice(Number(d.debt) || 0)}
+                <div style="font-size:0.66rem; color:var(--text-muted); font-weight:600;">jami ${formatPrice(Number(d.total) || 0)}</div>
+            </td>
+            <td>${supTags}${prodSub}</td>
+            <td style="white-space:nowrap;">
+                <div style="font-size:0.72rem; color:var(--text-secondary);">${(d.date || "").slice(0, 16)}</div>
+                <div style="font-size:0.72rem; font-weight:700; color:${st.color};">${d.dueDate ? "→ " + d.dueDate : ""}</div>
+            </td>
+            <td><span class="debtor-status" style="color:${st.color}; border-color:${st.color}55; background:${st.color}14;">${st.label}</span></td>
+            <td><div class="debtor-actions">${callBtn}${smsBtn}${payBtns}</div></td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    _bindDebtorControls();
+}
+
+let _debtorControlsBound = false;
+function _bindDebtorControls() {
+    if (_debtorControlsBound) return;
+    _debtorControlsBound = true;
+
+    // Filtr tugmalari
+    const bar = document.getElementById("debtors-filter");
+    if (bar) bar.addEventListener("click", (e) => {
+        const btn = e.target.closest(".debtor-filter-btn");
+        if (!btn) return;
+        debtorFilterState = btn.dataset.dfilter || "active";
+        renderDebtors();
+    });
+
+    // To'lov tugmalari (delegatsiya)
+    const tbody = document.getElementById("debtors-tbody");
+    if (tbody) tbody.addEventListener("click", (e) => {
+        const paidBtn = e.target.closest("[data-debtor-paid]");
+        if (paidBtn) { markDebtorPaid(paidBtn.dataset.debtorPaid); return; }
+        const partBtn = e.target.closest("[data-debtor-partial]");
+        if (partBtn) { partialDebtorPayment(partBtn.dataset.debtorPartial); return; }
+    });
+
+    // Excel eksport
+    const xlsBtn = document.getElementById("debtors-excel");
+    if (xlsBtn) xlsBtn.addEventListener("click", exportDebtorsExcel);
+    // PDF eksport
+    const pdfBtn = document.getElementById("debtors-pdf");
+    if (pdfBtn) pdfBtn.addEventListener("click", exportDebtorsPdf);
+}
+
+// Qarzdorlar ro'yxatini Excel'ga eksport
+function exportDebtorsExcel() {
+    if (typeof XLSX === "undefined") { alert("Excel kutubxonasi yuklanmadi."); return; }
+    const rows = [["Mijoz", "Telefon", "Telegram", "Qarz (UZS)", "Jami (UZS)", "Ta'minotchi", "Sana", "Muddat", "Holat"]];
+    (customerDebts || []).forEach(d => {
+        const st = _debtorDueStatus(d);
+        const info = _debtorItemsInfo(d);
+        rows.push([
+            d.name || "", d.phone || "", d.telegram || "",
+            Number(d.debt) || 0, Number(d.total) || 0,
+            info.suppliers.join(", "), d.date || "", d.dueDate || "", st.label
+        ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Qarzdorlar");
+    XLSX.writeFile(wb, `eco-qarzdorlar-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+// Qarzdorlar KPI yig'indisi (PDF/UI uchun umumiy)
+function _debtorsStats() {
+    let total = 0, count = 0, overdue = 0, overdueCnt = 0, soon = 0, soonCnt = 0, paid = 0, paidCnt = 0;
+    (customerDebts || []).forEach(d => {
+        const st = _debtorDueStatus(d);
+        const debt = Number(d.debt) || 0;
+        if (st.key === "paid") { paid += (Number(d.total) || debt); paidCnt++; return; }
+        total += debt; count++;
+        if (st.key === "overdue") { overdue += debt; overdueCnt++; }
+        else if (st.key === "soon") { soon += debt; soonCnt++; }
+    });
+    return { total, count, overdue, overdueCnt, soon, soonCnt, paid, paidCnt };
+}
+
+// Qarzdorlar PDF — premium oq A4 hujjat
+function _buildDebtorsPdfHtml() {
+    const s = _debtorsStats();
+    const kpi = (label, val, sub, color) =>
+        '<div style="flex:1;border:1px solid #eee;border-radius:10px;padding:12px 14px;">' +
+        '<div style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase;">' + label + '</div>' +
+        '<div style="font-size:18px;font-weight:800;color:' + color + ';margin-top:3px;">' + val + '</div>' +
+        '<div style="font-size:10px;color:#999;margin-top:2px;">' + sub + '</div></div>';
+
+    // Faqat aktiv (to'lanmagan) + to'langanlar oxirida; o'tgan→yaqin→faol→to'langan
+    const rank = { overdue: 0, soon: 1, active: 2, paid: 3 };
+    const list = (customerDebts || []).slice().sort((a, b) => {
+        const ra = rank[_debtorDueStatus(a).key], rb = rank[_debtorDueStatus(b).key];
+        if (ra !== rb) return ra - rb;
+        return (Number(b.debt) || 0) - (Number(a.debt) || 0);
+    });
+
+    const rows = list.map(d => {
+        const st = _debtorDueStatus(d);
+        const info = _debtorItemsInfo(d);
+        const isPaid = st.key === "paid";
+        return '<tr>' +
+            '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-weight:700;">' + (d.name || "—") +
+            (d.telegram ? '<div style="font-size:9px;color:#0891b2;">' + d.telegram + '</div>' : '') + '</td>' +
+            '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;">' + (d.phone || "—") + '</td>' +
+            '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:800;color:' + (isPaid ? '#10b981' : '#ef4444') + ';">' + formatPrice(Number(d.debt) || 0) +
+            '<div style="font-size:9px;color:#999;font-weight:600;">jami ' + formatPrice(Number(d.total) || 0) + '</div></td>' +
+            '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:10px;">' + (info.suppliers.join(", ") || "—") +
+            (info.products.length ? '<div style="color:#999;">' + info.products.slice(0, 2).join(", ") + (info.products.length > 2 ? " …" : "") + '</div>' : '') + '</td>' +
+            '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:10px;">' + (d.dueDate || "—") + '</td>' +
+            '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:10px;font-weight:700;color:' + (st.color.indexOf("--") >= 0 ? '#10b981' : st.color) + ';">' + st.label + '</td>' +
+            '</tr>';
+    }).join("");
+
+    return '<div style="width:794px;background:#fff;color:#1a1a1a;font-family:Arial,sans-serif;">' +
+        '<div style="background:linear-gradient(135deg,#ef4444,#f59e0b);color:#fff;padding:28px 32px;">' +
+        '<div style="font-size:26px;font-weight:800;">ECO SPORTS</div>' +
+        '<div style="font-size:14px;opacity:0.95;">Qarzdorlar (Nasiya) Hisoboti</div>' +
+        '<div style="font-size:11px;opacity:0.85;margin-top:4px;">Tuzilgan: ' + new Date().toLocaleString("uz-UZ") + '</div></div>' +
+        '<div style="padding:24px 32px;">' +
+        '<div style="display:flex;gap:10px;margin-bottom:20px;">' +
+        kpi("Jami Qarz", formatPrice(s.total), s.count + " ta qarzdor", "#ef4444") +
+        kpi("Muddati O'tgan", formatPrice(s.overdue), s.overdueCnt + " ta", "#dc2626") +
+        kpi("Yaqin (≤3 kun)", formatPrice(s.soon), s.soonCnt + " ta", "#f59e0b") +
+        kpi("To'langan", formatPrice(s.paid), s.paidCnt + " ta yopilgan", "#10b981") +
+        '</div>' +
+        '<div style="font-size:15px;font-weight:800;margin:6px 0 8px;color:#ef4444;">Qarzdorlar ro\'yxati</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:11px;">' +
+        '<thead><tr style="background:#fef2f2;">' +
+        '<th style="padding:7px 8px;text-align:left;">Mijoz</th><th style="padding:7px 8px;text-align:left;">Telefon</th>' +
+        '<th style="padding:7px 8px;text-align:right;">Qarz</th><th style="padding:7px 8px;text-align:left;">Ta\'minotchi mahsuloti</th>' +
+        '<th style="padding:7px 8px;text-align:left;">Muddat</th><th style="padding:7px 8px;text-align:left;">Holat</th></tr></thead>' +
+        '<tbody>' + (rows || '<tr><td colspan="6" style="padding:14px;text-align:center;color:#999;">Qarzdor yo\'q</td></tr>') + '</tbody></table>' +
+        '</div>' +
+        '<div style="padding:14px 32px;border-top:2px solid #ef4444;font-size:10px;color:#888;">ECO SPORTS CRM · ' + (appConfig.storeName || "") + ' · ' + (appConfig.storePhone || "") + '</div></div>';
+}
+
+async function exportDebtorsPdf() {
+    if (!window.html2canvas || !(window.jspdf && window.jspdf.jsPDF)) { alert("PDF kutubxonasi yuklanmadi. Internet aloqasini tekshiring."); return; }
+    const btn = document.getElementById("debtors-pdf");
+    const orig = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Tayyorlanmoqda...'; }
+    const holder = document.createElement("div");
+    holder.style.position = "fixed"; holder.style.left = "-99999px"; holder.style.top = "0"; holder.style.width = "794px";
+    holder.innerHTML = _buildDebtorsPdfHtml();
+    document.body.appendChild(holder);
+    try {
+        const el = holder.firstElementChild;
+        const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF("p", "mm", "a4");
+        const pageW = 210, pageH = 297, imgW = pageW;
+        const imgH = canvas.height * imgW / canvas.width;
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        let heightLeft = imgH, position = 0;
+        pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH); heightLeft -= pageH;
+        while (heightLeft > 0) { position -= pageH; pdf.addPage(); pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH); heightLeft -= pageH; }
+        pdf.save("Eco_Qarzdorlar_" + new Date().toISOString().slice(0, 10) + ".pdf");
+    } catch (e) { console.error("PDF xato:", e); alert("PDF yaratishda xato: " + e.message); }
+    finally { document.body.removeChild(holder); if (btn) { btn.disabled = false; btn.innerHTML = orig; } }
 }
 
 // --- Mahsulot narxlari (eco_inventory integer-PK bug'i sabab eco_config'da saqlanadi) ---
@@ -3107,6 +3472,20 @@ function getSupplierTakenValue(name) {
     return total;
 }
 
+// All-time MIQDOR of goods taken from a supplier (kirim bo'yicha) — qarz miqdori asosi
+// { packs, dona } — barcha vaqt davomida ta'minotchidan olingan jami yuk
+function getSupplierTakenQty(name) {
+    let packs = 0, dona = 0;
+    if (state.kirimHistory && Array.isArray(state.kirimHistory)) {
+        state.kirimHistory.forEach(k => {
+            if (k.supplier !== name) return;
+            packs += parseFloat(k.total_packs) || 0;
+            dona += parseFloat(k.total_qty) || 0;
+        });
+    }
+    return { packs, dona };
+}
+
 // Currency control shared by both report sections
 let indShowAllDetails = false;
 function _setReportCurrency(cur) {
@@ -3523,7 +3902,9 @@ function renderSupplierIndividualReport() {
     const productMetrics = {};
 
     supplierProducts.forEach(p => {
-        const qtyDona = inventory[p.id] !== undefined ? inventory[p.id] : 0;
+        // Zaxira: inventory'da bo'lmasa mahsulotning o'z qty'siga tushadi
+        // (dinamik mahsulotlar zaxirasi ko'pincha p.qty'da bo'ladi — shu sabab 0 chiqardi)
+        const qtyDona = inventory[p.id] !== undefined ? inventory[p.id] : (p.qty || 0);
         const packSizes = p.sizes ? p.sizes.length : 5;
         const qtyPacks = qtyDona / packSizes;
         const packCogs = p.cogs ? p.cogs : (p.price * 0.6 * packSizes);
@@ -3549,6 +3930,8 @@ function renderSupplierIndividualReport() {
             optimVal: 0,
             donaQty: 0,
             donaVal: 0,
+            soldCogs: 0,
+            creditGiven: 0,
             totalSoldVal: 0
         };
     });
@@ -3587,47 +3970,80 @@ function renderSupplierIndividualReport() {
     }
 
     // 4. Aggregate Sales for selected supplier & month
+    //    MUHIM: pachka/dona farqi sotuv KANALIGA emas, har bir item'ning
+    //    o'lchamiga qarab aniqlanadi. size "Pachka..." bo'lsa — optim pachka
+    //    savdosi (item.qty = pachka soni), aks holda — dona savdosi.
+    //    Shu yerda har sotilgan birlik tannarxi (COGS) ham yig'iladi.
+    let totalSoldCogs = 0;
+    let totalCreditGiven = 0; // mijozga nasiya (qarzga) berilgan, hali kelmagan pul
     if (state.salesHistory) {
         state.salesHistory.forEach(sale => {
             if (sale.timestamp && sale.timestamp.slice(0, 7) === selectedMonth) {
-                const isOptim = sale.channel === "optim";
+                // Nasiya ulushi: bu sotuvning qancha qismi qarzga berilgan (0..1)
+                const saleTotal = Number(sale.totalPaid) || 0;
+                const saleDebt = Number(sale.debt) || 0;
+                const debtRatio = saleTotal > 0 ? Math.min(1, Math.max(0, saleDebt / saleTotal)) : 0;
+
                 (sale.items || []).forEach(item => {
                     const itemSupplier = getSupplierFromProductName(item.name);
-                    if (itemSupplier === selectedSupplier) {
-                        const prod = supplierProducts.find(sp => sp.name === item.name || item.name.includes(sp.name) || sp.name.includes(item.name));
-                        const prodId = prod ? prod.id : null;
+                    if (itemSupplier !== selectedSupplier) return;
 
-                        const qty = item.qty || 1;
-                        const soldPrice = item.soldPrice || 0;
-                        const totalItemVal = qty * soldPrice;
+                    const prod = supplierProducts.find(sp => sp.name === item.name || item.name.includes(sp.name) || sp.name.includes(item.name));
+                    const prodId = prod ? prod.id : null;
 
-                        if (isOptim) {
-                            const packSizes = prod ? (prod.sizes ? prod.sizes.length : 5) : 5;
-                            const packs = qty / packSizes;
+                    const qty = item.qty || 1;
+                    const soldPrice = item.soldPrice || 0;
+                    const totalItemVal = qty * soldPrice;
 
-                            totalOptimPacks += packs;
-                            totalOptimVal += totalItemVal;
+                    // Bu item bo'yicha mijozga qarzga berilgan ulush (minus tushadi)
+                    const itemCredit = totalItemVal * debtRatio;
+                    totalCreditGiven += itemCredit;
+                    if (prodId && productMetrics[prodId]) {
+                        productMetrics[prodId].creditGiven += itemCredit;
+                    }
 
-                            if (prodId && productMetrics[prodId]) {
-                                productMetrics[prodId].optimPacks += packs;
-                                productMetrics[prodId].optimVal += totalItemVal;
-                                productMetrics[prodId].totalSoldVal += totalItemVal;
-                            }
-                        } else {
-                            totalDonaQty += qty;
-                            totalDonaVal += totalItemVal;
+                    // Tannarx: pachka tan narxi (cogs) va undan dona tannarxi
+                    const packSizes = prod ? (prod.sizes ? prod.sizes.length : 5) : 5;
+                    const packCogs = prod ? (prod.cogs ? prod.cogs : (prod.price * 0.6 * packSizes)) : 0;
+                    const donaCogs = packSizes > 0 ? packCogs / packSizes : 0;
 
-                            if (prodId && productMetrics[prodId]) {
-                                productMetrics[prodId].donaQty += qty;
-                                productMetrics[prodId].donaVal += totalItemVal;
-                                productMetrics[prodId].totalSoldVal += totalItemVal;
-                            }
+                    const isPack = !!(item.size && item.size.includes("Pachka"));
+
+                    if (isPack) {
+                        const packs = qty; // pachka item'ida qty = pachka soni
+                        const itemCogs = packs * packCogs;
+
+                        totalOptimPacks += packs;
+                        totalOptimVal += totalItemVal;
+                        totalSoldCogs += itemCogs;
+
+                        if (prodId && productMetrics[prodId]) {
+                            productMetrics[prodId].optimPacks += packs;
+                            productMetrics[prodId].optimVal += totalItemVal;
+                            productMetrics[prodId].soldCogs += itemCogs;
+                            productMetrics[prodId].totalSoldVal += totalItemVal;
+                        }
+                    } else {
+                        const itemCogs = qty * donaCogs;
+
+                        totalDonaQty += qty;
+                        totalDonaVal += totalItemVal;
+                        totalSoldCogs += itemCogs;
+
+                        if (prodId && productMetrics[prodId]) {
+                            productMetrics[prodId].donaQty += qty;
+                            productMetrics[prodId].donaVal += totalItemVal;
+                            productMetrics[prodId].soldCogs += itemCogs;
+                            productMetrics[prodId].totalSoldVal += totalItemVal;
                         }
                     }
                 });
             }
         });
     }
+    const totalSoldVal = totalOptimVal + totalDonaVal;
+    const totalSoldProfit = totalSoldVal - totalSoldCogs;
+    const totalCashReceived = totalSoldVal - totalCreditGiven; // naqd tushgan pul
 
     // 5. Sync currency controls for this section
     document.querySelectorAll("#ind-currency-toggle .cur-btn").forEach(b => {
@@ -3659,6 +4075,22 @@ function renderSupplierIndividualReport() {
         if (balance > 0) { balCard.className = "settle-stat settle-balance owe"; balNote.textContent = "Ta'minotchiga to'lashimiz kerak"; }
         else if (balance < 0) { balCard.className = "settle-stat settle-balance over"; balNote.textContent = "Oldindan to'langan (haqimiz bor)"; }
         else { balCard.className = "settle-stat settle-balance paid"; balNote.textContent = "To'liq hisob-kitob qilingan ✓"; }
+    }
+
+    // --- QARZDAGI MAHSULOT MIQDORI (pachka/dona) ---
+    // Olingan jami yuk miqdori va to'langan ulushga ko'ra hali to'lanmagan (qarzdagi) miqdor
+    const takenQty = getSupplierTakenQty(selectedSupplier);
+    const paidRatio = takenVal > 0 ? Math.min(1, Math.max(0, paidVal / takenVal)) : 0;
+    const unpaidFactor = 1 - paidRatio;
+    const debtPacks = Math.round(takenQty.packs * unpaidFactor * 100) / 100;
+    const debtDona = Math.round(takenQty.dona * unpaidFactor);
+    const elTakenQty = document.getElementById("ind-taken-qty");
+    const elDebtQty = document.getElementById("ind-debt-qty");
+    if (elTakenQty) elTakenQty.textContent = `${Math.round(takenQty.packs * 100) / 100} pachka · ${takenQty.dona} dona`;
+    if (elDebtQty) {
+        if (balance > 0) elDebtQty.textContent = `≈ ${debtPacks} pachka · ${debtDona} dona qarzda`;
+        else if (balance < 0) elDebtQty.textContent = "Ortiqcha to'lov (haq bor)";
+        else elDebtQty.textContent = "Hammasi to'langan ✓";
     }
     // payments list
     const payList = document.getElementById("ind-payments-list");
@@ -3709,6 +4141,22 @@ function renderSupplierIndividualReport() {
     document.getElementById("bux-ind-dona-qty").textContent = `${totalDonaQty} dona`;
     document.getElementById("bux-ind-dona-val").textContent = reportFmtMoney(totalDonaVal);
 
+    // Oylik tannarx (sotilgan mahsulot) va sof foyda
+    const elProfitCogs = document.getElementById("bux-ind-profit-cogs");
+    const elProfitVal = document.getElementById("bux-ind-profit-val");
+    const elProfitCard = document.getElementById("bux-ind-profit-card");
+    if (elProfitCogs) elProfitCogs.textContent = reportFmtMoney(totalSoldCogs);
+    if (elProfitVal) elProfitVal.textContent = reportFmtMoney(totalSoldProfit);
+    if (elProfitCard) elProfitCard.classList.toggle("is-loss", totalSoldProfit < 0);
+
+    // Nasiya (mijozga qarzga berilgan) — MINUS, hali kelmagan pul
+    const elCreditVal = document.getElementById("bux-ind-credit-val");
+    const elCashVal = document.getElementById("bux-ind-cash-val");
+    if (elCreditVal) elCreditVal.textContent = totalCreditGiven > 0
+        ? `− ${reportFmtMoney(totalCreditGiven)}`
+        : reportFmtMoney(0);
+    if (elCashVal) elCashVal.textContent = reportFmtMoney(totalCashReceived);
+
     // 8. Render product detail rows (last 5 by default + "Batafsil ko'rish" toggle)
     indTableBody.innerHTML = "";
     const metricsList = Object.values(productMetrics);
@@ -3721,6 +4169,8 @@ function renderSupplierIndividualReport() {
         imports: { packs: totalImportPacks, dona: totalImportDona, val: totalImportVal },
         optim: { packs: totalOptimPacks, val: totalOptimVal },
         donaSale: { qty: totalDonaQty, val: totalDonaVal },
+        profit: { cogs: totalSoldCogs, sold: totalSoldVal, profit: totalSoldProfit },
+        credit: { given: totalCreditGiven, cash: totalCashReceived },
         settlement: { taken: takenVal, paid: paidVal, balance: balance },
         metrics: metricsList,
         payments: (supplierPayments[selectedSupplier] || []).slice()
@@ -3763,8 +4213,13 @@ function renderSupplierIndividualReport() {
                     <div style="font-weight: 700; color: var(--primary);">${m.donaQty} dona</div>
                     <div style="font-size: 0.72rem; color: var(--primary); font-weight: 600;">Sotuv: ${reportFmtMoney(m.donaVal)}</div>
                 </td>
+                <td>
+                    <div style="font-size: 0.72rem; color: #ef4444; font-weight: 600;">Tan: ${reportFmtMoney(m.soldCogs)}</div>
+                    <div style="font-weight: 800; color: ${(m.totalSoldVal - m.soldCogs) < 0 ? '#ef4444' : 'var(--primary)'};">Foyda: ${reportFmtMoney(m.totalSoldVal - m.soldCogs)}</div>
+                </td>
                 <td style="font-weight: 800; color: #fff;">
                     ${reportFmtMoney(m.totalSoldVal)}
+                    ${m.creditGiven > 0 ? `<div style="font-size: 0.72rem; color: #ef4444; font-weight: 700;">Nasiya: − ${reportFmtMoney(m.creditGiven)}</div><div style="font-size: 0.72rem; color: var(--primary); font-weight: 600;">Naqd: ${reportFmtMoney(m.totalSoldVal - m.creditGiven)}</div>` : ''}
                 </td>
             `;
             indTableBody.appendChild(row);
@@ -6862,11 +7317,15 @@ async function syncFromSupabase() {
                     inventory = {};
                     colorStock = {};
                     state.kirimHistory = [];
+                    state.salesHistory = [];
+                    customerDebts = [];
                     localStorage.setItem("eco_sports_products_cleared", "1");
                     localStorage.setItem("eco_sports_dynamic_products", "[]");
                     localStorage.setItem("eco_sports_inventory", "{}");
                     localStorage.setItem("eco_sports_color_stock", "{}");
                     localStorage.setItem("eco_sports_kirim_history", "[]");
+                    localStorage.setItem("eco_sports_sales_history", "[]");
+                    localStorage.setItem("eco_sports_customer_debts", "[]");
                     localStorage.setItem("eco_sports_cleared_seen", String(clearedAt));
                     console.log("Supabase: Loyiha bulutda tozalangan — mahalliy ma'lumot ham tozalandi.");
                 }
@@ -7000,6 +7459,21 @@ async function syncFromSupabase() {
             state.salesHistory = salesWithItems;
             localStorage.setItem("eco_sports_sales_history", JSON.stringify(state.salesHistory));
             console.log("Supabase: Sales synced from eco_sales + eco_sale_items (boy maydonlar saqlandi)!");
+
+            // ARVOH MIJOZ QARZLARINI TOZALASH: har qarz sotuv bilan bir xil id'da
+            // yaratiladi. Sotuvi yo'q qarz = arvoh (loyiha tozalanganda sotuv o'chgan,
+            // lekin qarz qolib ketgan). Sotuvlar muvaffaqiyatli yuklangach — olib tashlanadi.
+            try {
+                const validSaleIds = new Set((state.salesHistory || []).map(s => String(s.id)));
+                const before = (customerDebts || []).length;
+                const pruned = (customerDebts || []).filter(d => validSaleIds.has(String(d.id)));
+                if (pruned.length !== before) {
+                    customerDebts = pruned;
+                    localStorage.setItem("eco_sports_customer_debts", JSON.stringify(customerDebts));
+                    if (typeof dbSaveConfig === "function") dbSaveConfig("eco_customer_debts", customerDebts);
+                    console.log(`Supabase: ${before - pruned.length} ta arvoh mijoz qarzi tozalandi (sotuvi yo'q).`);
+                }
+            } catch (e) { /* arvoh tozalash xatosi asosiy sinxni buzmasin */ }
         } else if (sErr) {
             console.warn("Supabase: eco_sales load error, using local:", sErr);
         }

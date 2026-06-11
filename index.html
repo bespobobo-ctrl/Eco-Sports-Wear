@@ -24,7 +24,7 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Main Style sheet -->
-    <link rel="stylesheet" href="style.css?v=3.9">
+    <link rel="stylesheet" href="style.css?v=4.5">
 </head>
 <body>
 
@@ -449,7 +449,7 @@
                     </div>
 
                     <!-- Finance Ledger Badges -->
-                    <div class="stats-grid" style="margin-bottom: 2.5rem;">
+                    <div class="stats-grid" style="margin-bottom: 2.5rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                         <div class="stat-badge-card">
                             <div class="stat-badge-icon" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.15); color: var(--primary);"><i class="fa-solid fa-chart-line"></i></div>
                             <div class="stat-badge-info">
@@ -478,6 +478,22 @@
                                 <h4>Netto Foyda (Toza)</h4>
                                 <strong id="bux-profit" class="highlight-text" style="-webkit-text-fill-color: initial; color: var(--primary);">0 UZS</strong>
                                 <small id="bux-profit-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Foyda marjasi: 0%</small>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.18); color: #f59e0b;"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Mijoz Qarzi (Olinadigan)</h4>
+                                <strong id="bux-customer-debt" style="color:#f59e0b;">0 UZS</strong>
+                                <small id="bux-customer-debt-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Mijozlar bizga qarzdor</small>
+                            </div>
+                        </div>
+                        <div class="stat-badge-card">
+                            <div class="stat-badge-icon" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.18); color: #ef4444;"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                            <div class="stat-badge-info">
+                                <h4>Ta'minotchi Qarzi (To'lanadigan)</h4>
+                                <strong id="bux-supplier-debt" style="color:#ef4444;">0 UZS</strong>
+                                <small id="bux-supplier-debt-note" style="display:block; color:var(--text-muted); font-size:0.7rem; margin-top:0.1rem;">Biz ta'minotchiga qarzdormiz</small>
                             </div>
                         </div>
                     </div>
@@ -540,6 +556,71 @@
 
                         <!-- Kassir + Top mahsulot kesimi -->
                         <div id="date-report-breakdown" style="margin-top:1.2rem;"></div>
+                    </div>
+
+                    <!-- QARZDORLAR (NASIYA) RO'YXATI -->
+                    <div class="history-card-container bux-collapsible" id="bux-debtors-card" style="margin-bottom: 2.5rem; border-color: rgba(239, 68, 68, 0.3);">
+                        <div class="history-header">
+                            <div>
+                                <h3 style="font-weight:800; font-size:1.25rem; display:flex; align-items:center; gap:8px;">
+                                    <i class="fa-solid fa-chevron-down bux-chevron"></i>
+                                    <i class="fa-solid fa-user-clock" style="color:#ef4444;"></i>
+                                    <span>Qarzdorlar <span class="highlight-text" style="background:linear-gradient(135deg,#ef4444,#f59e0b); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Ro'yxati</span></span>
+                                </h3>
+                                <p style="color:var(--text-secondary); font-size:0.8rem; margin-top:0.2rem;">Qaysi mijoz qancha qarz, qaysi ta'minotchi mahsulotidan, muddati va eslatma (SMS / qo'ng'iroq).</p>
+                            </div>
+                            <div class="export-btns" style="display:flex; gap:0.5rem;">
+                                <button type="button" class="btn" id="debtors-excel" style="background:linear-gradient(135deg,#0891b2,#10b981); color:#fff; padding:0.5rem 1rem; font-size:0.8rem; border-radius:8px;"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                                <button type="button" class="btn" id="debtors-pdf" style="background:linear-gradient(135deg,#ef4444,#f59e0b); color:#fff; padding:0.5rem 1rem; font-size:0.8rem; border-radius:8px;"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+                            </div>
+                        </div>
+
+                        <!-- KPI kartochkalar -->
+                        <div class="report-kpis ind-kpis" id="debtors-kpis" style="margin-top:1.2rem;">
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:#ef4444; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.2);"><i class="fa-solid fa-sack-xmark"></i></div>
+                                <div class="rep-kpi-body"><div class="rep-kpi-label">Jami Qarz</div><div class="rep-kpi-value" id="debtors-total">0 UZS</div>
+                                    <div class="ind-kpi-sub"><span>Qarzdorlar: <b id="debtors-count" style="color:#fff;">0</b></span></div></div>
+                            </div>
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:#dc2626; background:rgba(220,38,38,0.12); border-color:rgba(220,38,38,0.25);"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                <div class="rep-kpi-body"><div class="rep-kpi-label">Muddati O'tgan</div><div class="rep-kpi-value" id="debtors-overdue" style="color:#ef4444;">0 UZS</div>
+                                    <div class="ind-kpi-sub"><span><b id="debtors-overdue-count" style="color:#ef4444;">0</b> ta qarzdor</span></div></div>
+                            </div>
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:#f59e0b; background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.2);"><i class="fa-solid fa-hourglass-half"></i></div>
+                                <div class="rep-kpi-body"><div class="rep-kpi-label">Muddati Yaqin (≤3 kun)</div><div class="rep-kpi-value" id="debtors-soon" style="color:#f59e0b;">0 UZS</div>
+                                    <div class="ind-kpi-sub"><span><b id="debtors-soon-count" style="color:#f59e0b;">0</b> ta qarzdor</span></div></div>
+                            </div>
+                            <div class="rep-kpi">
+                                <div class="rep-kpi-ic" style="color:var(--primary); background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.2);"><i class="fa-solid fa-circle-check"></i></div>
+                                <div class="rep-kpi-body"><div class="rep-kpi-label">To'langan (yopilgan)</div><div class="rep-kpi-value" id="debtors-paid" style="color:var(--primary);">0 UZS</div>
+                                    <div class="ind-kpi-sub"><span><b id="debtors-paid-count" style="color:var(--primary);">0</b> ta yopilgan</span></div></div>
+                            </div>
+                        </div>
+
+                        <!-- Filtr tugmalari -->
+                        <div class="debtor-filter-bar" id="debtors-filter" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin:1.2rem 0 0.8rem;">
+                            <button type="button" class="cur-btn debtor-filter-btn active" data-dfilter="active">Faol qarzlar</button>
+                            <button type="button" class="cur-btn debtor-filter-btn" data-dfilter="overdue">⚠️ Muddati o'tgan</button>
+                            <button type="button" class="cur-btn debtor-filter-btn" data-dfilter="soon">⏳ Yaqinlashayotgan</button>
+                            <button type="button" class="cur-btn debtor-filter-btn" data-dfilter="paid">✓ To'langan</button>
+                            <button type="button" class="cur-btn debtor-filter-btn" data-dfilter="all">Hammasi</button>
+                        </div>
+
+                        <!-- Qarzdorlar jadvali -->
+                        <div style="overflow-x:auto;">
+                            <table class="crm-table">
+                                <thead><tr>
+                                    <th>Mijoz</th><th>Telefon</th><th>Qarz</th><th>Ta'minotchi mahsuloti</th><th>Sana / Muddat</th><th>Holat</th><th>Amallar</th>
+                                </tr></thead>
+                                <tbody id="debtors-tbody"></tbody>
+                            </table>
+                            <div class="empty-history-box" id="debtors-empty" style="padding:2rem 1rem; display:none;">
+                                <i class="fa-solid fa-face-smile" style="color:var(--primary); font-size:2rem;"></i>
+                                <p>Bu turkumda qarzdor yo'q.</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- PENDING PRICE APPROVAL PRODUCTS TABLE [NEW] -->
@@ -675,6 +756,7 @@
                                 <div class="settle-stat">
                                     <div class="settle-stat-label"><i class="fa-solid fa-download" style="color:#3b82f6;"></i> Jami olingan yuk (qarz)</div>
                                     <div class="settle-stat-value" id="ind-taken-val">0 UZS</div>
+                                    <div class="settle-stat-qty" id="ind-taken-qty">0 pachka · 0 dona</div>
                                 </div>
                                 <div class="settle-stat">
                                     <div class="settle-stat-label"><i class="fa-solid fa-hand-holding-dollar" style="color:var(--primary);"></i> To'langan</div>
@@ -683,6 +765,7 @@
                                 <div class="settle-stat settle-balance paid" id="ind-balance-card">
                                     <div class="settle-stat-label"><i class="fa-solid fa-wallet"></i> Qolgan qarz</div>
                                     <div class="settle-stat-value" id="ind-balance-val">0 UZS</div>
+                                    <div class="settle-stat-qty" id="ind-debt-qty">0 pachka · 0 dona</div>
                                     <div class="settle-balance-note" id="ind-balance-note"></div>
                                 </div>
                             </div>
@@ -744,6 +827,26 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="rep-kpi" id="bux-ind-profit-card">
+                                <div class="rep-kpi-ic" style="color:#22c55e; background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.2);"><i class="fa-solid fa-sack-dollar"></i></div>
+                                <div class="rep-kpi-body">
+                                    <div class="rep-kpi-label">Oylik Sof Foyda</div>
+                                    <div class="rep-kpi-value" id="bux-ind-profit-val">0 UZS</div>
+                                    <div class="ind-kpi-sub">
+                                        <span>Tannarx (sotilgan): <b id="bux-ind-profit-cogs" style="color:#ef4444;">0 UZS</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rep-kpi" id="bux-ind-credit-card">
+                                <div class="rep-kpi-ic" style="color:#ef4444; background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.2);"><i class="fa-solid fa-hand-holding-hand"></i></div>
+                                <div class="rep-kpi-body">
+                                    <div class="rep-kpi-label">Nasiya (Qarzga berilgan)</div>
+                                    <div class="rep-kpi-value" id="bux-ind-credit-val">0 UZS</div>
+                                    <div class="ind-kpi-sub">
+                                        <span>Naqd tushgan: <b id="bux-ind-cash-val" style="color:var(--primary);">0 UZS</b></span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div style="overflow-x: auto;">
@@ -760,6 +863,7 @@
                                         <th>Kirim (Oy bo'yicha)</th>
                                         <th>Optim Savdo (Oy bo'yicha)</th>
                                         <th>Dona Savdo (Oy bo'yicha)</th>
+                                        <th>Tannarx / Foyda</th>
                                         <th>Jami Sotuv Qiymati</th>
                                     </tr>
                                 </thead>
@@ -1796,7 +1900,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- Core App Logic -->
-    <script src="app.js?v=6.11"></script>
+    <script src="app.js?v=6.19"></script>
     <!-- PWA: Service Worker'ni ro'yxatdan o'tkazish (offline kesh) -->
     <script>
         if ('serviceWorker' in navigator) {
