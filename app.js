@@ -75,27 +75,57 @@ const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_U
 // --- eco_users (Login / Parollar) — QULFLANGAN: faqat admin RPC orqali ---
 // Jadval RLS bilan himoyalangan; to'g'ridan upsert/delete ishlamaydi. Admin
 // paroli bilan SECURITY DEFINER funksiyalar chaqiriladi (parol serverда tekshiriladi).
+// Admin RPC'lar uchun parolni ta'minlash — sessiyada bo'lmasa bir marta so'raydi
+async function _ensureAdminPw() {
+    if (_sessionAdminPw) return _sessionAdminPw;
+    const pw = prompt("Bulutga saqlash uchun joriy ADMIN parolini kiriting:");
+    if (pw) {
+        _sessionAdminPw = pw;
+        try { sessionStorage.setItem("eco_sports_admin_pw", pw); } catch (e) {}
+    }
+    return pw || "";
+}
+
 async function dbSaveUser(user) {
-    if (!supabaseClient) return;
+    if (!supabaseClient) return { ok: true, localOnly: true };
+    const pw = await _ensureAdminPw();
     try {
-        await supabaseClient.rpc("admin_save_user", {
-            p_admin_password: _sessionAdminPw || "",
+        const { error } = await supabaseClient.rpc("admin_save_user", {
+            p_admin_password: pw,
             p_id: user.id, p_name: user.name, p_username: user.username,
             p_password: user.password, p_pin: user.pin, p_role: user.role
         });
+        if (error) {
+            const msg = (error.message || "").toLowerCase();
+            if (msg.includes("ruxsat") || msg.includes("permission")) {
+                _sessionAdminPw = ""; try { sessionStorage.removeItem("eco_sports_admin_pw"); } catch (e) {}
+                alert("⚠️ Bulutga saqlanmadi: admin parol noto'g'ri. Qayta urinib ko'ring.");
+            } else if (msg.includes("could not find") || error.code === "PGRST202") {
+                alert("⚠️ Bulutga saqlanmadi: xavfsizlik funksiyalari hali o'rnatilmagan (supabase_secure_users.sql).");
+            } else {
+                alert("⚠️ Bulutga saqlanmadi: " + (error.message || "noma'lum xato"));
+            }
+            return { ok: false, error };
+        }
+        return { ok: true };
     } catch (err) {
         console.error("Supabase user save (RPC) failed:", err);
+        return { ok: false, error: err };
     }
 }
 
 async function dbDeleteUser(userId) {
-    if (!supabaseClient) return;
+    if (!supabaseClient) return { ok: true, localOnly: true };
+    const pw = await _ensureAdminPw();
     try {
-        await supabaseClient.rpc("admin_delete_user", {
-            p_admin_password: _sessionAdminPw || "", p_id: userId
+        const { error } = await supabaseClient.rpc("admin_delete_user", {
+            p_admin_password: pw, p_id: userId
         });
+        if (error) { alert("⚠️ Bulutdan o'chmadi: " + (error.message || "xato")); return { ok: false, error }; }
+        return { ok: true };
     } catch (err) {
         console.error("Supabase user delete (RPC) failed:", err);
+        return { ok: false, error: err };
     }
 }
 
