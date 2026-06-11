@@ -72,30 +72,45 @@ const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_U
 
 // 1.7. SUPABASE SYNCHRONIZATION HELPERS
 
-// --- eco_users (Login / Parollar) ---
+// --- eco_users (Login / Parollar) — QULFLANGAN: faqat admin RPC orqali ---
+// Jadval RLS bilan himoyalangan; to'g'ridan upsert/delete ishlamaydi. Admin
+// paroli bilan SECURITY DEFINER funksiyalar chaqiriladi (parol serverда tekshiriladi).
 async function dbSaveUser(user) {
     if (!supabaseClient) return;
     try {
-        await supabaseClient.from("eco_users").upsert({
-            id: user.id,
-            name: user.name,
-            username: user.username,
-            password: user.password,
-            pin: user.pin,
-            role: user.role
+        await supabaseClient.rpc("admin_save_user", {
+            p_admin_password: _sessionAdminPw || "",
+            p_id: user.id, p_name: user.name, p_username: user.username,
+            p_password: user.password, p_pin: user.pin, p_role: user.role
         });
     } catch (err) {
-        console.error("Supabase user save failed:", err);
+        console.error("Supabase user save (RPC) failed:", err);
     }
 }
 
 async function dbDeleteUser(userId) {
     if (!supabaseClient) return;
     try {
-        await supabaseClient.from("eco_users").delete().eq("id", userId);
+        await supabaseClient.rpc("admin_delete_user", {
+            p_admin_password: _sessionAdminPw || "", p_id: userId
+        });
     } catch (err) {
-        console.error("Supabase user delete failed:", err);
+        console.error("Supabase user delete (RPC) failed:", err);
     }
+}
+
+// Admin: bulutdagi xodimlar ro'yxatini xavfsiz (parol bilan) yangilash
+async function refreshUsersFromCloud() {
+    if (!supabaseClient || !_sessionAdminPw) return false;
+    try {
+        const { data, error } = await supabaseClient.rpc("admin_list_users", { p_admin_password: _sessionAdminPw });
+        if (!error && Array.isArray(data) && data.length > 0) {
+            users = data;
+            localStorage.setItem("eco_sports_users", JSON.stringify(users));
+            return true;
+        }
+    } catch (err) { /* offline yoki ruxsat yo'q — mahalliy ro'yxat qoladi */ }
+    return false;
 }
 
 // ============================================================
@@ -417,6 +432,9 @@ const defaultUsers = [
 ];
 let users = defaultUsers;
 let currentUser = null;
+// Admin sessiya paroli — eco_users qulflangach, admin RPC'larini (xodim ro'yxati,
+// qo'shish/o'chirish) chaqirish uchun kerak. Faqat shu qurilma sessiyasida turadi.
+let _sessionAdminPw = sessionStorage.getItem("eco_sports_admin_pw") || "";
 
 // Sotuvchi (Optim 1) tezkor kirish PIN kodi — bu yerdan o'zgartirsa bo'ladi
 const SELLER_QUICK_PIN = "5555";
@@ -512,15 +530,35 @@ function generateReceiptId() {
 }
 
 // 6. AUTHENTICATION SERVICES
-function handleLoginSubmit(e) {
+async function handleLoginSubmit(e) {
     e.preventDefault();
     const userVal = usernameInput.value.trim();
     const passVal = passwordInput.value;
 
-    const matchedUser = users.find(u => u.username && u.username.toLowerCase().trim() === userVal.toLowerCase() && u.password === passVal);
+    // 1) XAVFSIZ: server tomonida tekshirish (verify_login RPC).
+    //    Parollar mijozга chiqmaydi; faqat to'g'ri kelganда o'sha foydalanuvchi qaytadi.
+    let matchedUser = null;
+    let rpcAuthoritative = false; // RPC ishlatildi (online + funksiya mavjud)
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient.rpc("verify_login", { p_username: userVal, p_password: passVal });
+            if (!error) { rpcAuthoritative = true; matchedUser = data || null; }
+        } catch (err) { /* tarmoq/offline — pastдаги zaxiraga tushadi */ }
+    }
+
+    // 2) ZAXIRA (offline yoki SQL hali o'rnatilmagan): mahalliy ro'yxat bo'yicha
+    //    — bu yo'l sizni hech qachon tizimdan qulflab qo'ymaydi.
+    if (!rpcAuthoritative) {
+        matchedUser = users.find(u => u.username && u.username.toLowerCase().trim() === userVal.toLowerCase() && u.password === passVal) || null;
+    }
 
     if (matchedUser) {
         loginErrorMsg.style.display = "none";
+        // Admin sessiya paroli — admin RPC'lari (xodim boshqaruvi) uchun saqlanadi
+        if (matchedUser.role === "admin") {
+            _sessionAdminPw = passVal;
+            try { sessionStorage.setItem("eco_sports_admin_pw", passVal); } catch (er) {}
+        }
         sessionStorage.setItem("eco_sports_logged_in", "true");
         sessionStorage.setItem("eco_sports_logged_in_user", JSON.stringify(matchedUser));
         currentUser = matchedUser;
@@ -558,15 +596,26 @@ function showLoginView(view) {
 }
 
 // Sotuvchi PIN orqali kirish — to'g'ri bo'lsa Optim1 sifatida kiradi
-function handleSellerPinSubmit(e) {
+async function handleSellerPinSubmit(e) {
     if (e) e.preventDefault();
     const pinInput = document.getElementById("seller-pin-input");
     const sellerErr = document.getElementById("seller-pin-error");
     const val = (pinInput ? pinInput.value : "").trim();
 
     if (val === SELLER_QUICK_PIN) {
-        const optimUser = users.find(u => u.username && u.username.toLowerCase().trim() === "optim1")
-            || users.find(u => u.role === "kassir-optim");
+        // 1) XAVFSIZ: server tomonidan optim foydalanuvchini olish (verify_seller_pin)
+        let optimUser = null, rpcOk = false;
+        if (typeof supabaseClient !== "undefined" && supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient.rpc("verify_seller_pin", { p_pin: val });
+                if (!error) { rpcOk = true; optimUser = data || null; }
+            } catch (err) { /* offline — zaxiraga */ }
+        }
+        // 2) ZAXIRA: mahalliy ro'yxat (offline yoki SQL hali yo'q)
+        if (!rpcOk || !optimUser) {
+            optimUser = users.find(u => u.username && u.username.toLowerCase().trim() === "optim1")
+                || users.find(u => u.role === "kassir-optim") || optimUser;
+        }
 
         if (!optimUser) {
             if (sellerErr) sellerErr.style.display = "flex";
@@ -5065,9 +5114,14 @@ function populateSettings() {
     if (pinInput) pinInput.value = appConfig.pin;
     if (tokenInput) tokenInput.value = appConfig.botToken;
     if (chatInput) chatInput.value = appConfig.chatId || "";
-    
+
     renderCashiersList();
     renderSettingsSuppliersAndCategories();
+
+    // Admin: xodimlar ro'yxatini bulutdan xavfsiz yangilash (qulflangan jadval → RPC)
+    if (typeof refreshUsersFromCloud === "function" && _sessionAdminPw) {
+        refreshUsersFromCloud().then(ok => { if (ok) renderCashiersList(); });
+    }
 }
 
 function renderSettingsSuppliersAndCategories() {
@@ -6898,7 +6952,14 @@ function setupEventListeners() {
                     users[idx].username = username;
                     users[idx].password = password;
                     users[idx].pin = pinVal;
-                    dbSaveUser(users[idx]);
+                    dbSaveUser(users[idx]); // OLD _sessionAdminPw bilan avtorizatsiya (sinxron o'qiladi)
+                    // O'zini (admin) tahrirlagan bo'lsa — sessiya parolini YANGISIGA yangilash
+                    if (currentUser && currentUser.id === editId && role === "admin") {
+                        _sessionAdminPw = password;
+                        try { sessionStorage.setItem("eco_sports_admin_pw", password); } catch (er) {}
+                        currentUser.name = name; currentUser.username = username; currentUser.pin = pinVal;
+                        sessionStorage.setItem("eco_sports_logged_in_user", JSON.stringify(currentUser));
+                    }
                 }
             } else {
                 const newCashier = {
@@ -7236,24 +7297,13 @@ function safeJsonParse(val, fallback) {
 // 13.5. SUPABASE BACKGROUND SYNC FUNCTION
 async function syncFromSupabase() {
     try {
-        // --- 1. eco_users (Login / Parollar) ---
-        const { data: cloudUsers, error: uErr } = await supabaseClient.from("eco_users").select("*");
-        if (!uErr && cloudUsers && cloudUsers.length > 0) {
-            users = cloudUsers;
-            localStorage.setItem("eco_sports_users", JSON.stringify(users));
-            // Re-migrate roles after cloud sync
-            users.forEach(u => {
-                if (!u.role) {
-                    const usernameLower = u.username ? u.username.toLowerCase() : "";
-                    if (usernameLower === "admin") u.role = "admin";
-                    else if (usernameLower === "optim1") u.role = "kassir-optim";
-                    else if (usernameLower === "dona1") u.role = "kassir-dona";
-                    else u.role = "kassir-dona";
-                }
-            });
-            console.log("Supabase: Users synced from eco_users!");
-        } else if (uErr) {
-            console.warn("Supabase: eco_users load error, using local:", uErr);
+        // --- 1. eco_users (Login / Parollar) — QULFLANGAN ---
+        //    Jadval RLS bilan himoyalangan: anon to'g'ridan o'qiy olmaydi (parollar
+        //    chiqmaydi). Admin kirgan bo'lsa — xavfsiz admin_list_users RPC orqali
+        //    ro'yxat yangilanadi; aks holda mahalliy ro'yxat ishlatiladi (login
+        //    baribir verify_login RPC orqali tekshiriladi).
+        if (_sessionAdminPw) {
+            try { await refreshUsersFromCloud(); } catch (e) { /* mahalliy qoladi */ }
         }
 
         // --- 2. eco_config (Tizim Sozlamalari) ---
