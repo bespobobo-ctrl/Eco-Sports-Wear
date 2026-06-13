@@ -1,0 +1,294 @@
+/* =====================================================================
+   ECO SPORTS — AI AGENT MODULI (alohida, izolyatsiya qilingan)
+   Barcha klasslar .aia- prefiksi bilan — asosiy app bilan aralashmaydi.
+   ===================================================================== */
+
+#ai-agent-section { padding-top: 1.5rem; padding-bottom: 4rem; }
+
+.aia-wrap {
+    --aia-indigo: #6366f1;
+    --aia-violet: #7c3aed;
+    --aia-pink: #db2777;
+    --aia-cyan: #06b6d4;
+    --aia-amber: #fbbf24;
+    --aia-green: #10b981;
+    --aia-red: #ef4444;
+    --aia-card: rgba(255,255,255,0.03);
+    --aia-card-2: rgba(255,255,255,0.05);
+    --aia-border: rgba(255,255,255,0.09);
+    --aia-text: #f1f5f9;
+    --aia-text-dim: rgba(241,245,249,0.6);
+    color: var(--aia-text);
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* ---------- HERO ---------- */
+.aia-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 22px;
+    padding: 1.8rem 1.9rem;
+    margin-bottom: 1.4rem;
+    background: linear-gradient(135deg, rgba(99,102,241,0.22), rgba(124,58,237,0.18) 45%, rgba(219,39,119,0.18));
+    border: 1px solid var(--aia-border);
+}
+.aia-hero::after {
+    content: "";
+    position: absolute; right: -60px; top: -60px;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(99,102,241,0.35), transparent 70%);
+    filter: blur(10px);
+}
+.aia-hero-row { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; position: relative; z-index: 2; }
+.aia-hero-ic {
+    width: 64px; height: 64px; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.7rem; color: #fff;
+    background: linear-gradient(135deg, var(--aia-indigo), var(--aia-pink));
+    box-shadow: 0 10px 30px rgba(124,58,237,0.4);
+}
+.aia-hero h1 { font-size: 1.55rem; font-weight: 800; margin: 0; letter-spacing: -0.3px; }
+.aia-hero p { margin: 0.25rem 0 0; color: var(--aia-text-dim); font-size: 0.92rem; max-width: 620px; }
+.aia-hero-status { margin-left: auto; display: flex; align-items: center; gap: 0.8rem; }
+.aia-pulse {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.95rem; border-radius: 999px; font-weight: 700; font-size: 0.85rem;
+    background: rgba(16,185,129,0.14); color: var(--aia-green); border: 1px solid rgba(16,185,129,0.3);
+}
+.aia-pulse.off { background: rgba(239,68,68,0.12); color: var(--aia-red); border-color: rgba(239,68,68,0.3); }
+.aia-pulse .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 0 currentColor; animation: aia-pulse 1.8s infinite; }
+.aia-pulse.off .dot { animation: none; }
+@keyframes aia-pulse { 0%{box-shadow:0 0 0 0 rgba(16,185,129,0.5)} 70%{box-shadow:0 0 0 8px rgba(16,185,129,0)} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} }
+
+.aia-toggle-btn {
+    border: none; cursor: pointer; padding: 0.6rem 1.1rem; border-radius: 12px;
+    font-weight: 800; font-size: 0.85rem; color: #fff;
+    background: linear-gradient(135deg, var(--aia-indigo), var(--aia-violet));
+    transition: transform .15s, opacity .15s;
+}
+.aia-toggle-btn:hover { transform: translateY(-1px); }
+.aia-toggle-btn.is-off { background: linear-gradient(135deg, #475569, #334155); }
+
+/* ---------- TABS ---------- */
+.aia-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.3rem; }
+.aia-tab {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 1rem; border-radius: 12px; cursor: pointer;
+    font-weight: 700; font-size: 0.85rem; color: var(--aia-text-dim);
+    background: var(--aia-card); border: 1px solid var(--aia-border);
+    transition: all .15s;
+}
+.aia-tab:hover { color: var(--aia-text); border-color: rgba(255,255,255,0.2); }
+.aia-tab.active { color: #fff; background: linear-gradient(135deg, var(--aia-indigo), var(--aia-violet)); border-color: transparent; box-shadow: 0 6px 18px rgba(99,102,241,0.35); }
+.aia-tab i { font-size: 0.95rem; }
+
+/* ---------- PANELS ---------- */
+.aia-panel { display: none; animation: aia-fade .25s ease; }
+.aia-panel.active { display: block; }
+@keyframes aia-fade { from { opacity: 0; transform: translateY(6px);} to { opacity:1; transform:none;} }
+
+.aia-card {
+    background: var(--aia-card); border: 1px solid var(--aia-border);
+    border-radius: 18px; padding: 1.4rem; margin-bottom: 1.1rem;
+}
+.aia-card-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 1rem; }
+.aia-card-head .ic { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; color: #fff; }
+.aia-card-head h3 { margin: 0; font-size: 1.05rem; font-weight: 800; }
+.aia-card-head p { margin: 0.1rem 0 0; font-size: 0.82rem; color: var(--aia-text-dim); }
+
+.aia-grid { display: grid; gap: 1rem; }
+.aia-grid.cols-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.aia-grid.cols-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.aia-grid.cols-4 { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+/* ---------- STAT CARDS ---------- */
+.aia-stat {
+    background: var(--aia-card-2); border: 1px solid var(--aia-border);
+    border-radius: 16px; padding: 1.1rem 1.2rem;
+}
+.aia-stat .lbl { font-size: 0.78rem; color: var(--aia-text-dim); font-weight: 600; }
+.aia-stat .val { font-size: 1.7rem; font-weight: 800; margin-top: 0.2rem; letter-spacing: -0.5px; }
+.aia-stat .sub { font-size: 0.75rem; margin-top: 0.25rem; color: var(--aia-green); font-weight: 700; }
+
+/* ---------- ACCOUNT CARDS ---------- */
+.aia-acc {
+    display: flex; align-items: center; gap: 0.9rem;
+    background: var(--aia-card-2); border: 1px solid var(--aia-border);
+    border-radius: 16px; padding: 1.1rem;
+}
+.aia-acc .net-ic { width: 46px; height: 46px; border-radius: 13px; display:flex; align-items:center; justify-content:center; font-size: 1.3rem; color:#fff; flex: 0 0 auto; }
+.aia-acc .net-info { flex: 1; min-width: 0; }
+.aia-acc .net-info b { display: block; font-size: 0.95rem; }
+.aia-acc .net-info span { font-size: 0.8rem; color: var(--aia-text-dim); }
+.aia-acc .net-badge { font-size: 0.72rem; font-weight: 800; padding: 0.25rem 0.6rem; border-radius: 999px; }
+.aia-acc .net-badge.on { background: rgba(16,185,129,0.14); color: var(--aia-green); }
+.aia-acc .net-badge.off { background: rgba(148,163,184,0.14); color: #94a3b8; }
+.net-ig { background: linear-gradient(135deg,#f58529,#dd2a7b,#8134af); }
+.net-tg { background: linear-gradient(135deg,#229ED9,#0088cc); }
+.net-fb { background: linear-gradient(135deg,#1877f2,#0a5dc2); }
+.net-tt { background: linear-gradient(135deg,#000,#25f4ee 130%); }
+
+/* ---------- BUTTONS / INPUTS ---------- */
+.aia-btn {
+    border: none; cursor: pointer; padding: 0.7rem 1.2rem; border-radius: 12px;
+    font-weight: 800; font-size: 0.85rem; color: #fff; display: inline-flex; align-items: center; gap: 0.5rem;
+    background: linear-gradient(135deg, var(--aia-indigo), var(--aia-violet)); transition: transform .15s, filter .15s;
+}
+.aia-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.aia-btn.ghost { background: var(--aia-card-2); border: 1px solid var(--aia-border); color: var(--aia-text); }
+.aia-btn.green { background: linear-gradient(135deg, var(--aia-green), #059669); }
+.aia-btn.pink { background: linear-gradient(135deg, var(--aia-pink), #be185d); }
+.aia-btn.amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.aia-btn.sm { padding: 0.45rem 0.8rem; font-size: 0.78rem; }
+.aia-btn.danger { background: linear-gradient(135deg, var(--aia-red), #dc2626); }
+.aia-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+.aia-label { display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 0.4rem; color: var(--aia-text); }
+.aia-input, .aia-select, .aia-textarea {
+    width: 100%; padding: 0.7rem 0.9rem; border-radius: 12px;
+    background: rgba(0,0,0,0.25); border: 1px solid var(--aia-border); color: var(--aia-text);
+    font-size: 0.88rem; font-family: inherit; transition: border-color .15s;
+}
+.aia-input:focus, .aia-select:focus, .aia-textarea:focus { outline: none; border-color: var(--aia-indigo); }
+.aia-textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+.aia-field { margin-bottom: 1rem; }
+.aia-row { display: flex; gap: 0.7rem; flex-wrap: wrap; align-items: flex-end; }
+.aia-row > * { flex: 1; min-width: 140px; }
+.aia-row .grow0 { flex: 0 0 auto; }
+
+/* ---------- PILLS / CHIPS ---------- */
+.aia-chip { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; background: var(--aia-card-2); border: 1px solid var(--aia-border); }
+.aia-chip.green { color: var(--aia-green); background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.25); }
+.aia-chip.amber { color: var(--aia-amber); background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.25); }
+.aia-chip.red { color: var(--aia-red); background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.25); }
+.aia-chip.indigo { color: #a5b4fc; background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.25); }
+
+/* ---------- CONTENT PLAN ---------- */
+.aia-dropzone {
+    border: 2px dashed var(--aia-border); border-radius: 16px; padding: 1.6rem;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    background: rgba(0,0,0,0.15);
+}
+.aia-dropzone:hover { border-color: var(--aia-indigo); background: rgba(99,102,241,0.06); }
+.aia-dropzone i { font-size: 2rem; color: var(--aia-indigo); }
+.aia-dropzone p { margin: 0.6rem 0 0; color: var(--aia-text-dim); font-size: 0.85rem; }
+.aia-preview-img { max-width: 100%; max-height: 230px; border-radius: 14px; margin-top: 0.8rem; border: 1px solid var(--aia-border); }
+
+.aia-phase { border-left: 3px solid var(--aia-indigo); padding: 0.2rem 0 0.2rem 1rem; margin-bottom: 1.2rem; }
+.aia-phase h4 { margin: 0 0 0.3rem; font-size: 0.98rem; font-weight: 800; }
+.aia-phase .meta { font-size: 0.78rem; color: var(--aia-text-dim); margin-bottom: 0.6rem; }
+.aia-day {
+    background: var(--aia-card-2); border: 1px solid var(--aia-border); border-radius: 12px;
+    padding: 0.8rem 0.95rem; margin-bottom: 0.6rem;
+}
+.aia-day .d-top { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.aia-day .d-num { font-weight: 800; font-size: 0.82rem; color: var(--aia-amber); }
+.aia-day .d-type { font-size: 0.72rem; }
+.aia-day .d-hook { font-weight: 700; font-size: 0.9rem; }
+.aia-day .d-cap { font-size: 0.83rem; color: var(--aia-text-dim); line-height: 1.5; margin-top: 0.25rem; }
+.aia-day .d-tags { font-size: 0.76rem; color: #a5b4fc; margin-top: 0.4rem; }
+
+.aia-revenue {
+    background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(6,182,212,0.1));
+    border: 1px solid rgba(16,185,129,0.25); border-radius: 16px; padding: 1.2rem; margin-bottom: 1rem;
+}
+.aia-revenue .big { font-size: 2rem; font-weight: 800; color: var(--aia-green); letter-spacing: -0.5px; }
+
+.aia-budget-item {
+    display: flex; align-items: center; gap: 0.8rem;
+    background: rgba(0,0,0,0.22); border: 1px solid var(--aia-border);
+    border-radius: 14px; padding: 0.85rem 1rem;
+}
+.aia-budget-item .b-ic {
+    width: 42px; height: 42px; border-radius: 12px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.05rem;
+}
+.aia-budget-item .b-info { flex: 1; min-width: 0; }
+.aia-budget-item .b-top { display: flex; align-items: baseline; gap: 0.6rem; }
+.aia-budget-item .b-top b { font-size: 0.85rem; line-height: 1.3; flex: 1; }
+.aia-budget-item .b-usd { font-size: 0.95rem; font-weight: 800; color: var(--aia-green); white-space: nowrap; }
+.aia-budget-item .b-pct { font-size: 0.74rem; color: var(--aia-text-dim); margin-top: 0.25rem; font-weight: 600; }
+
+/* ---------- AI STUDIO PREVIEWS ---------- */
+.aia-gen-card { background: var(--aia-card-2); border: 1px solid var(--aia-border); border-radius: 16px; overflow: hidden; }
+.aia-gen-media {
+    aspect-ratio: 4/5; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; text-align: center; padding: 1rem; position: relative;
+    font-size: 0.95rem; line-height: 1.4;
+}
+.aia-gen-media.is-video::after { content: "\f04b"; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; width: 54px; height: 54px; background: rgba(0,0,0,0.45); border-radius: 50%; display:flex; align-items:center; justify-content:center; font-size: 1.2rem; }
+.aia-gen-body { padding: 0.9rem; }
+.aia-gen-body .cap { font-size: 0.82rem; line-height: 1.5; }
+.aia-gen-body .tags { font-size: 0.76rem; color: #a5b4fc; margin-top: 0.5rem; }
+
+/* ---------- AUTO-REPLY / RULES ---------- */
+.aia-switch { position: relative; display: inline-block; width: 52px; height: 28px; flex: 0 0 auto; }
+.aia-switch input { display: none; }
+.aia-switch .sl { position: absolute; inset: 0; border-radius: 999px; background: #475569; transition: .2s; cursor: pointer; }
+.aia-switch .sl::before { content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.aia-switch input:checked + .sl { background: var(--aia-green); }
+.aia-switch input:checked + .sl::before { transform: translateX(24px); }
+
+.aia-rule {
+    display: flex; align-items: center; gap: 0.7rem; padding: 0.7rem 0.9rem;
+    background: var(--aia-card-2); border: 1px solid var(--aia-border); border-radius: 12px; margin-bottom: 0.5rem;
+}
+.aia-rule .r-q { font-weight: 700; font-size: 0.85rem; }
+.aia-rule .r-a { font-size: 0.8rem; color: var(--aia-text-dim); }
+.aia-rule .x { margin-left: auto; cursor: pointer; color: var(--aia-red); background: none; border: none; font-size: 1rem; }
+
+.aia-chat { background: rgba(0,0,0,0.22); border-radius: 14px; padding: 1rem; margin-top: 0.8rem; }
+.aia-msg { max-width: 80%; padding: 0.6rem 0.9rem; border-radius: 14px; margin-bottom: 0.5rem; font-size: 0.85rem; line-height: 1.45; }
+.aia-msg.in { background: var(--aia-card-2); border: 1px solid var(--aia-border); }
+.aia-msg.out { background: linear-gradient(135deg, var(--aia-indigo), var(--aia-violet)); color: #fff; margin-left: auto; }
+
+/* ---------- SCHEDULER ---------- */
+.aia-time-slot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 0.9rem; background: var(--aia-card-2); border: 1px solid var(--aia-border);
+    border-radius: 12px; margin-bottom: 0.5rem;
+}
+.aia-time-slot .t { font-weight: 800; font-size: 1rem; }
+.aia-time-slot .score { font-size: 0.78rem; }
+.aia-bar { height: 7px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; margin-top: 0.35rem; }
+.aia-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--aia-indigo), var(--aia-pink)); }
+
+.aia-queue-item {
+    display: flex; align-items: center; gap: 0.8rem; padding: 0.8rem 0.95rem;
+    background: var(--aia-card-2); border: 1px solid var(--aia-border); border-radius: 12px; margin-bottom: 0.5rem;
+}
+.aia-queue-item .when { font-weight: 800; font-size: 0.82rem; color: var(--aia-amber); flex: 0 0 auto; min-width: 92px; }
+.aia-queue-item .what { flex: 1; min-width: 0; }
+.aia-queue-item .what b { font-size: 0.85rem; }
+.aia-queue-item .what span { display: block; font-size: 0.78rem; color: var(--aia-text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- API KEYS ---------- */
+.aia-prov { background: var(--aia-card-2); border: 1px solid var(--aia-border); border-radius: 16px; padding: 1.1rem; margin-bottom: 0.9rem; }
+.aia-prov-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.8rem; }
+.aia-prov-head .ic { width: 36px; height: 36px; border-radius: 10px; display:flex; align-items:center; justify-content:center; color:#fff; font-size: 0.95rem; }
+.aia-prov-head b { font-size: 0.92rem; }
+.aia-prov-head .cnt { margin-left: auto; font-size: 0.76rem; color: var(--aia-text-dim); }
+.aia-keyrow { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.7rem; background: rgba(0,0,0,0.22); border-radius: 10px; margin-bottom: 0.4rem; }
+.aia-keyrow code { flex: 1; font-size: 0.78rem; color: var(--aia-text-dim); font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aia-keyrow .x { cursor: pointer; color: var(--aia-red); background: none; border: none; }
+
+.aia-note { font-size: 0.8rem; color: var(--aia-text-dim); line-height: 1.5; }
+.aia-banner {
+    display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.9rem 1.1rem; border-radius: 14px;
+    background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.28); margin-bottom: 1.1rem;
+}
+.aia-banner i { color: var(--aia-amber); font-size: 1.1rem; margin-top: 0.1rem; }
+.aia-banner .txt { font-size: 0.83rem; line-height: 1.5; color: var(--aia-text); }
+
+.aia-loading { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--aia-text-dim); font-size: 0.85rem; }
+.aia-spin { width: 16px; height: 16px; border: 2px solid var(--aia-border); border-top-color: var(--aia-indigo); border-radius: 50%; animation: aia-spin 0.7s linear infinite; }
+@keyframes aia-spin { to { transform: rotate(360deg);} }
+
+.aia-empty { text-align: center; padding: 1.5rem; color: var(--aia-text-dim); font-size: 0.85rem; }
+
+@media (max-width: 640px) {
+    .aia-hero-status { margin-left: 0; width: 100%; justify-content: space-between; }
+    .aia-hero h1 { font-size: 1.3rem; }
+}

@@ -18,6 +18,12 @@ Desktop.ini
 # Dependencies
 node_modules/
 
+# Secrets / env — TOKENLAR HECH QACHON git'ga tushmasin
+.env
+.env.*
+*.secret
+
+
 # Test / QA artifacts
 test_screenshot.js
 verify_packs_kirim.js

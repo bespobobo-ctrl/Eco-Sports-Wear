@@ -24,7 +24,8 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Main Style sheet -->
-    <link rel="stylesheet" href="style.css?v=4.6">
+    <link rel="stylesheet" href="style.css?v=4.7">
+    <link rel="stylesheet" href="ai-agent/ai-agent.css?v=1.1">
 </head>
 <body>
 
@@ -155,6 +156,11 @@
                         <li>
                             <button class="dept-tab-btn" data-dept="sozlamalar">
                                 <i class="fa-solid fa-sliders"></i> Sozlamalar
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dept-tab-btn" data-dept="ai-agent">
+                                <i class="fa-solid fa-robot"></i> AI Agent
                             </button>
                         </li>
                     </ul>
@@ -1087,7 +1093,8 @@
                 </div>
 
                 <!-- KUNLIK SVERTKA (RECONCILIATION) + O'ZGARMAS HISOB JURNALI -->
-                <div class="settings-accordion settings-block" id="recon-block">
+                <div class="settings-accordion settings-block maint-locked" id="recon-block">
+                    <div class="maint-overlay"><i class="fa-solid fa-screwdriver-wrench"></i><div class="maint-text"><span>Tuzatish ishlari olib borilmoqda</span><small>Tez orada qayta ishga tushadi</small></div></div>
                     <div class="settings-acc-head">
                         <div class="settings-card-ic" style="background:linear-gradient(135deg,#6366f1,#0891b2)"><i class="fa-solid fa-scale-balanced"></i></div>
                         <div class="settings-card-titles">
@@ -1115,7 +1122,8 @@
                 </div>
 
                 <!-- BUXGALTERIYA DAFTARI (DOUBLE-ENTRY SOYA DAFTARI) -->
-                <div class="settings-accordion settings-block" id="shadow-block">
+                <div class="settings-accordion settings-block maint-locked" id="shadow-block">
+                    <div class="maint-overlay"><i class="fa-solid fa-screwdriver-wrench"></i><div class="maint-text"><span>Tuzatish ishlari olib borilmoqda</span><small>Tez orada qayta ishga tushadi</small></div></div>
                     <div class="settings-acc-head">
                         <div class="settings-card-ic" style="background:linear-gradient(135deg,#7c3aed,#db2777)"><i class="fa-solid fa-book"></i></div>
                         <div class="settings-card-titles">
@@ -1140,7 +1148,8 @@
                 </div>
 
                 <!-- MA'LUMOT ZAXIRASI (BACKUP / RESTORE) -->
-                <div class="settings-accordion settings-block" id="backup-block">
+                <div class="settings-accordion settings-block maint-locked" id="backup-block">
+                    <div class="maint-overlay"><i class="fa-solid fa-screwdriver-wrench"></i><div class="maint-text"><span>Tuzatish ishlari olib borilmoqda</span><small>Tez orada qayta ishga tushadi</small></div></div>
                     <div class="settings-acc-head">
                         <div class="settings-card-ic cyan"><i class="fa-solid fa-database"></i></div>
                         <div class="settings-card-titles">
@@ -1173,6 +1182,11 @@
                     </button>
                 </div>
             </div>
+        </div>
+
+        <!-- ============ AI AGENT BO'LIMI (alohida modul: /ai-agent) ============ -->
+        <div class="dept-section" id="ai-agent-section" style="display: none;">
+            <div id="ai-agent-root"><!-- ai-agent/ai-agent.js shu yerga render qiladi --></div>
         </div>
 
         <!-- CLEAR PROJECT (password) MODAL -->
@@ -1901,6 +1915,7 @@
 
     <!-- Core App Logic -->
     <script src="app.js?v=6.21"></script>
+    <script src="ai-agent/ai-agent.js?v=1.2"></script>
     <!-- PWA: Service Worker'ni ro'yxatdan o'tkazish (offline kesh) -->
     <script>
         if ('serviceWorker' in navigator) {

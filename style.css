@@ -355,12 +355,14 @@ button, input, select, textarea {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 85px;
+    gap: 1rem;
+    height: 68px;
 }
 
 .nav-menu {
-    flex-grow: 1;
-    margin: 0 2rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0 1rem;
     display: flex;
     justify-content: center;
 }
@@ -368,37 +370,46 @@ button, input, select, textarea {
 .dept-tabs {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    background: var(--bg-dark-base);
+    flex-wrap: nowrap;
+    gap: 0.2rem;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    background: rgba(255, 255, 255, 0.025);
     border: 1px solid var(--border-color);
-    padding: 0.3rem;
-    border-radius: 16px;
+    padding: 0.28rem;
+    border-radius: 14px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
+.dept-tabs::-webkit-scrollbar { display: none; }
 
 .dept-tab-btn {
     background: transparent;
     color: var(--text-secondary);
-    padding: 0.6rem 1.2rem;
-    border-radius: 12px;
-    font-size: 0.9rem;
+    padding: 0.5rem 0.95rem;
+    border-radius: 10px;
+    font-size: 0.84rem;
     font-weight: 700;
+    letter-spacing: -0.1px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 8px;
-    transition: var(--transition-bounce);
+    gap: 7px;
+    white-space: nowrap;
+    transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
     border: 1px solid transparent;
 }
 
 .dept-tab-btn i {
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     transition: var(--transition-smooth);
 }
 
 .dept-tab-btn:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .dept-tab-btn:hover i {
@@ -409,50 +420,66 @@ button, input, select, textarea {
     color: var(--primary);
     background: var(--primary-glow);
     border: 1px solid rgba(16, 185, 129, 0.25);
-    box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.12);
 }
 
 .dept-tab-btn.active i {
     color: var(--primary);
 }
 
+/* AI Agent tab — premium urg'u (indigo/violet identifikatsiya) */
+.dept-tab-btn[data-dept="ai-agent"] i { color: #818cf8; }
+.dept-tab-btn[data-dept="ai-agent"]:hover { background: rgba(99, 102, 241, 0.08); }
+.dept-tab-btn[data-dept="ai-agent"].active {
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #7c3aed);
+    border-color: transparent;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+.dept-tab-btn[data-dept="ai-agent"].active i { color: #fff; }
+
 .logo {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 800;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     display: flex;
     align-items: center;
     gap: 4px;
+    flex: 0 0 auto;
 }
 
 .admin-badge {
-    font-size: 0.75rem;
+    font-size: 0.68rem;
     font-weight: 700;
+    letter-spacing: 0.3px;
     background: var(--primary-glow);
     border: 1px solid rgba(16, 185, 129, 0.3);
     color: var(--primary);
-    padding: 0.2rem 0.6rem;
+    padding: 0.18rem 0.55rem;
     border-radius: 6px;
-    margin-left: 10px;
+    margin-left: 8px;
+    white-space: nowrap;
 }
 
 .nav-actions {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 0.7rem;
+    flex: 0 0 auto;
 }
 
 .cashier-badge {
     background: var(--bg-dark-input);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    padding: 0.5rem 1.2rem;
+    padding: 0.45rem 0.95rem;
     border-radius: 30px;
-    font-size: 0.9rem;
+    font-size: 0.84rem;
     font-weight: 700;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
+    white-space: nowrap;
 }
 
 .cashier-badge i {
@@ -463,14 +490,15 @@ button, input, select, textarea {
     background: rgba(239, 68, 68, 0.08);
     border: 1px solid rgba(239, 68, 68, 0.15);
     color: #ef4444;
-    padding: 0.5rem 1.2rem;
-    border-radius: 12px;
-    font-size: 0.9rem;
+    padding: 0.45rem 0.9rem;
+    border-radius: 11px;
+    font-size: 0.84rem;
     font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 6px;
+    white-space: nowrap;
     transition: var(--transition-bounce);
 }
 
@@ -1293,30 +1321,47 @@ button, input, select, textarea {
     }
 }
 
+/* Tablet/laptop — tablar siqilib, pill bir qatorda qoladi */
+@media (max-width: 1100px) {
+    .nav-menu { margin: 0 0.6rem; justify-content: flex-start; }
+    .dept-tab-btn { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+    .nav-actions { gap: 0.5rem; }
+}
+
 @media (max-width: 768px) {
     .navbar {
-        height: 75px;
+        height: 62px;
+        gap: 0.6rem;
     }
-    
+
     .logo {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
     }
-    
+
     .admin-badge {
-        font-size: 0.7rem;
+        font-size: 0.68rem;
         padding: 0.1rem 0.4rem;
         margin-left: 5px;
     }
-    
+
+    .nav-menu { margin: 0 0.4rem; }
+
+    /* Mobilда tab matnini yashirib, faqat ikonka — ixcham va toza */
+    .dept-tab-btn { padding: 0.55rem 0.7rem; font-size: 0; gap: 0; }
+    .dept-tab-btn i { font-size: 1.05rem; }
+
     .cashier-badge {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.8rem;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.78rem;
     }
-    
+    .cashier-badge #active-cashier-name { display: none; }
+
     .logout-btn {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.8rem;
+        padding: 0.45rem 0.7rem;
+        font-size: 0;
+        gap: 0;
     }
+    .logout-btn i { font-size: 1rem; }
     
     .pos-header {
         flex-direction: column;
@@ -3645,3 +3690,59 @@ button, input, select, textarea {
 }
 .sim-summary.sim-good { background: rgba(16,185,129,0.12); color: #10b981; }
 .sim-summary.sim-bad { background: rgba(239,68,68,0.12); color: #ef4444; }
+
+/* ===== TUZATISH ISHLARI (MAINTENANCE LOCK) ===== */
+.settings-accordion.maint-locked { position: relative; overflow: hidden; }
+.settings-accordion.maint-locked > *:not(.maint-overlay) {
+    filter: blur(3px) grayscale(0.6);
+    opacity: 0.45;
+    pointer-events: none !important;
+    user-select: none;
+}
+.maint-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+    padding: 1rem 1.25rem;
+    border-radius: inherit;
+    background: rgba(15, 23, 42, 0.66);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    cursor: not-allowed;
+}
+.maint-overlay i {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.14);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 50%;
+}
+.maint-overlay .maint-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    line-height: 1.25;
+}
+.maint-overlay span {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.2px;
+}
+.maint-overlay small {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.72);
+    font-weight: 600;
+}
