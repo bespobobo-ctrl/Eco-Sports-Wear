@@ -5138,11 +5138,9 @@ function _bindKirimPaymentModal() {
 // 11.7 POPULATE SYSTEM SETTINGS (SOZLAMALAR)
 function populateSettings() {
     const pinInput = document.getElementById("settings-pin");
-    const tokenInput = document.getElementById("settings-bot-token");
     const chatInput = document.getElementById("settings-chat-id");
-    
+
     if (pinInput) pinInput.value = appConfig.pin;
-    if (tokenInput) tokenInput.value = appConfig.botToken;
     if (chatInput) chatInput.value = appConfig.chatId || "";
 
     renderCashiersList();
@@ -6762,25 +6760,22 @@ function setupEventListeners() {
     // Sozlamalar settings listener
     const settingsForm = document.getElementById("settings-form");
     const settingsPinInput = document.getElementById("settings-pin");
-    const settingsTokenInput = document.getElementById("settings-bot-token");
     const settingsChatInput = document.getElementById("settings-chat-id");
-    
+
     if (settingsForm) {
         settingsForm.addEventListener("submit", (e) => {
             e.preventDefault();
-            if (!settingsPinInput || !settingsTokenInput || !settingsChatInput) return;
-            
+            if (!settingsPinInput || !settingsChatInput) return;
+
             const pinVal = settingsPinInput.value.trim();
-            const tokenVal = settingsTokenInput.value.trim();
             const chatVal = settingsChatInput.value.trim();
-            
+
             if (pinVal.length !== 4 || isNaN(pinVal)) {
                 alert("Kassa PIN-kodi 4 xonali raqam bo'lishi shart!");
                 return;
             }
-            
+
             appConfig.pin = pinVal;
-            appConfig.botToken = tokenVal;
             appConfig.chatId = chatVal;
             
             localStorage.setItem("eco_sports_config", JSON.stringify(appConfig));

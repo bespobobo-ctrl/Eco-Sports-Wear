@@ -938,7 +938,7 @@
                         <div class="settings-card-ic green"><i class="fa-solid fa-sliders"></i></div>
                         <div class="settings-card-titles">
                             <h3>Kassa & Integratsiya</h3>
-                            <p>PIN-kod va Telegram bot sozlamalari.</p>
+                            <p>PIN-kod va hisobot sozlamalari. (Telegram bot serverda — Vercel ENV)</p>
                         </div>
                         <div class="settings-status"><span class="settings-status-dot"></span> Webhook: <b>Faol</b></div>
                     </div>
@@ -947,11 +947,6 @@
                             <label for="settings-pin"><i class="fa-solid fa-key"></i> Kassa PIN Kodi</label>
                             <input type="password" id="settings-pin" class="settings-pin-input" maxlength="4" value="7777" required>
                             <small>Sotuvni tasdiqlash uchun 4 xonali kod.</small>
-                        </div>
-                        <div class="settings-field">
-                            <label for="settings-bot-token"><i class="fa-solid fa-robot"></i> Telegram Bot Token</label>
-                            <input type="text" id="settings-bot-token" class="settings-input settings-mono" value="" placeholder="🔒 Serverda yashirin (Vercel ENV: BOT_TOKEN)" readonly>
-                            <small>🔒 Token endi serverda saqlanadi — bu yerda ko'rsatilmaydi va kerak emas.</small>
                         </div>
                         <div class="settings-field">
                             <label for="settings-chat-id"><i class="fa-solid fa-paper-plane"></i> Hisobot Chat ID</label>
@@ -1914,7 +1909,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <!-- Core App Logic -->
-    <script src="app.js?v=6.21"></script>
+    <script src="app.js?v=6.22"></script>
     <script src="ai-agent/ai-agent.js?v=1.2"></script>
     <!-- PWA: Service Worker'ni ro'yxatdan o'tkazish (offline kesh) -->
     <script>
